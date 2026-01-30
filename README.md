@@ -108,3 +108,15 @@ sudo cp redfish-exporter.service /etc/systemd/system/redfish-exporter.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now redfish-exporter.service
 ```
+
+# Testet on Hardware
+
+Here some Server's that I have successfully testet:
+* Supermicro
+  * AS -5126GS-TNRT2
+    * Redfish 1.21.0
+  * AS -1124US-TNRP
+    * Redfish 1.8.0
+* HPE
+  * ProLiant DL380 Gen10
+  * Redfish 1.6.0
