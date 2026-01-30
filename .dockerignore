@@ -5,6 +5,7 @@ __pycache__
 .git
 .gitignore
 .dockerignore
+.ruff_cache
 
 *.example
 README.md
