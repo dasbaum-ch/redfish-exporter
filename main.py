@@ -20,8 +20,29 @@ from prometheus_client import (
 
 
 @dataclass
+class RedfishResource:
+    """Container for Redfish resource URLs."""
+
+    chassis: str | None = None
+    systems: str | None = None
+    power: str | None = None
+    session_service: str | None = None
+
+
+@dataclass
+class PowerMetrics:
+    """Container for power metrics."""
+
+    voltage: float | None = None
+    watts: float | None = None
+    amps: float | None = None
+    serial: str | None = None
+
+
+@dataclass
 class RedfishSession:
     """Container for Redfish session data."""
+
     token: str | None = None
     loggout_url: str | None = None
     vendor: str | None = None
@@ -35,12 +56,12 @@ class HostConfig:
     username: str
     password: str
     chassis: list[str] | None = None
-    max_retries: int = 3 # 3 retires
-    backoff: int = 2 # wait 2 seconds
+    max_retries: int = 3  # 3 retires
+    backoff: int = 2  # wait 2 seconds
     cool_down: int = 120  # seconds to wait after too many failures
     failures: int = 0
     next_retry_time: float = field(default=0.0, init=False)
-    session: RedfishSession = field(default_factory=RedfishSession) 
+    session: RedfishSession = field(default_factory=RedfishSession)
 
     # New attributes for Redfish stuff
     vendor: str | None = None
@@ -130,7 +151,9 @@ async def login_hpe(session, host: HostConfig) -> bool:
     payload = {"UserName": host.username, "Password": host.password}
 
     try:
-        async with session.post(login_url, json=payload, ssl=False, timeout=10) as login_resp:
+        async with session.post(
+            login_url, json=payload, ssl=False, timeout=10
+        ) as login_resp:
             if login_resp.status == 201:
                 host.session.token = login_resp.headers.get("X-Auth-Token")
                 host.session.logout_url = login_resp.headers.get("Location")
@@ -161,7 +184,9 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
     if not host.session.vendor:
         host.session.vendor = await probe_vendor(session, host)
 
-    is_hpe = host.session.vendor and host.session.vendor.strip().upper().startswith("HPE")
+    is_hpe = host.session.vendor and host.session.vendor.strip().upper().startswith(
+        "HPE"
+    )
 
     for attempt in range(1, host.max_retries + 1):
         try:
@@ -228,23 +253,27 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
     return None
 
 
-async def discover_redfish_resources(session, host: HostConfig) -> dict:
+async def discover_redfish_resources(
+    session, host: HostConfig
+) -> RedfishResource | None:
     """Discover available Redfish resources and return relevant URLs"""
     root_url = f"https://{host.fqdn}/redfish/v1/"
     data = await fetch_with_retry(session, host, root_url)
     if not data:
         return {}
 
-    # Extrahiere Links aus der Root-Antwort
-    links = {
-        "Chassis": data.get("Chassis", {}).get("@odata.id"),
-        "Systems": data.get("Systems", {}).get("@odata.id"),
-        "SessionService": data.get("SessionService", {}).get("@odata.id"),
-    }
-    if not links["Chassis"]:
+    # Create RedfishRessource object
+    resources = RedfishResource(
+        chassis=data.get("Chassis", {}).get("@odata.id"),
+        systems=data.get("Systems", {}).get("@odata.id"),
+        session_service=data.get("SessionService", {}).get("@odata.id"),
+    )
+
+    if not resources.chassis:
         logging.error("No valid Chassis URL found for host %s", host.fqdn)
-        return {}
-    return links
+        return None
+
+    return resources
 
 
 def get_power_resource_info(
@@ -313,54 +342,46 @@ def process_power_supplies(
 
 async def process_power_supply(
     session, host: HostConfig, psu_data: dict, power_resource_type: str
-):
+) -> PowerMetrics | None:
     """Extract metrics from PowerSupply"""
     serial = psu_data.get("SerialNumber")
+    metrics = PowerMetrics(serial=serial)
 
     if power_resource_type == "PowerSubsystem":
-        # Newer Redfish API: Metrics are an own "Metrics" ressource
+        # New Redfish API: Metrics are an own "Metrics" ressource
         metrics_url = psu_data.get("Metrics", {}).get("@odata.id")
         if not metrics_url:
             logging.warning("No Metrics found for PowerSupply %s", psu_data.get("Id"))
-            return
+            return None
 
         metrics_url = f"https://{host.fqdn}{metrics_url}"
         metrics_data = await fetch_with_retry(session, host, metrics_url)
         if not metrics_data:
-            return
+            return None
 
         # Get metrics from Metrics ressource
-        line_input_v = metrics_data.get("InputVoltage", {}).get("Reading")
-        watts_input = metrics_data.get("InputPowerWatts", {}).get("Reading")
-        amps_input = metrics_data.get("InputCurrentAmps", {}).get("Reading")
+        metrics.voltage = metrics_data.get("InputVoltage", {}).get("Reading")
+        metrics.watts = metrics_data.get("InputPowerWatts", {}).get("Reading")
+        metrics.amps = metrics_data.get("InputCurrentAmps", {}).get("Reading")
 
     elif power_resource_type == "Power":
         # Older Redfish API: Metrics are direct in PowerSupply as an array
-        line_input_v = psu_data.get("LineInputVoltage")
-        watts_input = psu_data.get("PowerInputWatts")
-        if watts_input is None:
-            watts_input = psu_data.get("LastPowerOutputWatts")
-        amps_input = psu_data.get("InputCurrentAmps")
-        if amps_input is None:
-            if line_input_v and watts_input:
-                amps_input = round(watts_input / line_input_v, 2)
+        metrics.voltage = psu_data.get("LineInputVoltage")
+        metrics.watts = psu_data.get("PowerInputWatts")
+        if metrics.watts is None:
+            metrics.watts = psu_data.get("LastPowerOutputWatts")
+        metrics.amps = psu_data.get("InputCurrentAmps")
+        if metrics.amps is None and metrics.voltage and metrics.watts:
+            metrics.amps = round(metrics.watts / metrics.voltage, 2)
 
     else:
         logging.error(
             "Unknown power resource type for PowerSupply %s", psu_data.get("Id")
         )
-        return
 
-    if amps_input is None and line_input_v and watts_input:
-        amps_input = round(watts_input / line_input_v, 2)
+        return None
 
-    # Update Prometheus metrics
-    if line_input_v is not None:
-        VOLTAGE_GAUGE.labels(host=host.fqdn, psu_serial=serial).set(line_input_v)
-    if watts_input is not None:
-        WATTS_GAUGE.labels(host=host.fqdn, psu_serial=serial).set(watts_input)
-    if amps_input is not None:
-        AMPS_GAUGE.labels(host=host.fqdn, psu_serial=serial).set(amps_input)
+    return metrics
 
 
 def normalize_url(url: str) -> str:
@@ -382,34 +403,25 @@ async def get_power_data(session, host: HostConfig):
 
     # Start time measurement
     start = time.monotonic()
-    # Root ressource abfragen
+
+    # Get root ressources
     resources = await discover_redfish_resources(session, host)
-    if not resources:
+    if not resources or not resources.chassis:
         logging.error("Could not discover any resources for %s", host.fqdn)
         host.mark_failure()
         UP_GAUGE.labels(host=host.fqdn).set(0)
         return
 
-    chassis_url = resources.get("Chassis")
-    if not chassis_url:
-        logging.error("No valid Chassis URL found for %s", host.fqdn)
-        host.mark_failure()
-        UP_GAUGE.labels(host=host.fqdn).set(0)
-        return
-
-    # Mark host as up
     host.mark_success()
     UP_GAUGE.labels(host=host.fqdn).set(1)
 
-    # Get chassis ressource
-    chassis_url = f"https://{host.fqdn}{chassis_url}"
+    chassis_url = f"https://{host.fqdn}{resources.chassis}"
     chassis_data = await fetch_with_retry(session, host, chassis_url)
     if not chassis_data:
         host.mark_failure()
         UP_GAUGE.labels(host=host.fqdn).set(0)
         return
 
-    # loop over each member in chassis ressource
     for chassis_member in chassis_data.get("Members", []):
         chassis_member_url = chassis_member.get("@odata.id")
         if not chassis_member_url:
@@ -417,7 +429,6 @@ async def get_power_data(session, host: HostConfig):
 
         # Normalize URL... I needed this for realy old Redfish versions :S (<1.6.0)
         chassis_member_url = normalize_url(chassis_member_url)
-
         # Get chassis id from url ("/redfish/v1/Chassis/1" -> 1)
         chassis_member_id = chassis_member_url.split("/")[-1]
         # Check if the chassis id is in config (had problem with chassis "NVMe")
@@ -444,7 +455,7 @@ async def get_power_data(session, host: HostConfig):
 
         # Get PowerSupplies, depend on ressource type ("Power" or "PowerSubsystem")
         if power_resource_type == "PowerSubsystem":
-            # PowerSupplies-URL abfragen (für PowerSubsystem)
+            # Request PowerSupplies url (for PowerSubsystem)
             power_supplies_url = power_data.get("PowerSupplies", {}).get("@odata.id")
             if not power_supplies_url:
                 logging.warning("No PowerSupplies found for %s", host.fqdn)
@@ -469,13 +480,19 @@ async def get_power_data(session, host: HostConfig):
                     continue
 
                 # Process PowerSupplies object
-                await process_power_supply(session, host, psu_data, "PowerSubsystem")
+                metrics = await process_power_supply(
+                    session, host, psu_data, "PowerSubsystem"
+                )
+                if metrics:
+                    update_prometheus_metrics(host, metrics)
 
         elif power_resource_type == "Power":
             # Loop over PowerSupplies for older Redfish versions
             for psu in power_data.get("PowerSupplies", []):
                 # Process PowerSupplies object
-                await process_power_supply(session, host, psu, "Power")
+                metrics = await process_power_supply(session, host, psu, "Power")
+                if metrics:
+                    update_prometheus_metrics(host, metrics)
 
         else:
             logging.error("Unknown power resource type for host %s", host.fqdn)
@@ -483,6 +500,18 @@ async def get_power_data(session, host: HostConfig):
 
     # Measure request and process latency
     REQUEST_LATENCY.labels(host=host.fqdn).observe(time.monotonic() - start)
+
+
+def update_prometheus_metrics(host: HostConfig, metrics: PowerMetrics):
+    """Update Prometheus metrics with PowerMetrics data."""
+    if metrics.voltage is not None and metrics.serial:
+        VOLTAGE_GAUGE.labels(host=host.fqdn, psu_serial=metrics.serial).set(
+            metrics.voltage
+        )
+    if metrics.watts is not None and metrics.serial:
+        WATTS_GAUGE.labels(host=host.fqdn, psu_serial=metrics.serial).set(metrics.watts)
+    if metrics.amps is not None and metrics.serial:
+        AMPS_GAUGE.labels(host=host.fqdn, psu_serial=metrics.serial).set(metrics.amps)
 
 
 async def get_system_info(session, host: HostConfig):
