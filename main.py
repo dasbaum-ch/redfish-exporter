@@ -626,7 +626,7 @@ async def run_exporter(config, stop_event):
             # Graceful shutdown: logout from Redfish sessions
             logging.info("Exporter stopping, logging out from Redfish sessions...")
             await asyncio.gather(
-                *(logout_host(session, h) for h in host_objs if h.session_token)
+                *(logout_host(session, h) for h in host_objs if h.session.token)
             )
             logging.info("All sessions logged out.")
     logging.info("Exporter stopped cleanly.")
