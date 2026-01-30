@@ -44,7 +44,7 @@ class RedfishSession:
     """Container for Redfish session data."""
 
     token: str | None = None
-    loggout_url: str | None = None
+    logout_url: str | None = None
     vendor: str | None = None
 
 
