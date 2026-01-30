@@ -63,13 +63,6 @@ class HostConfig:
     next_retry_time: float = field(default=0.0, init=False)
     session: RedfishSession = field(default_factory=RedfishSession)
 
-    # New attributes for Redfish stuff
-    vendor: str | None = None
-    session_token: str | None = None
-    session_logout: str | None = (
-        None  # SessionLocation like /redfish/v1/SessionService/Sessions/marco.lucarelli%40abacus.ch00000000xxx/
-    )
-
     def should_skip(self) -> bool:
         """Check if host is still in cool-down window"""
         return time.monotonic() < self.next_retry_time
