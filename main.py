@@ -20,6 +20,14 @@ from prometheus_client import (
 
 
 @dataclass
+class RedfishSession:
+    """Container for Redfish session data."""
+    token: str | None = None
+    loggout_url: str | None = None
+    vendor: str | None = None
+
+
+@dataclass
 class HostConfig:
     """Solve too many arguments"""
 
@@ -27,11 +35,12 @@ class HostConfig:
     username: str
     password: str
     chassis: list[str] | None = None
-    max_retries: int = 1
-    backoff: int = 2
+    max_retries: int = 3 # 3 retires
+    backoff: int = 2 # wait 2 seconds
     cool_down: int = 120  # seconds to wait after too many failures
     failures: int = 0
     next_retry_time: float = field(default=0.0, init=False)
+    session: RedfishSession = field(default_factory=RedfishSession) 
 
     # New attributes for Redfish stuff
     vendor: str | None = None
@@ -69,23 +78,23 @@ REQUEST_TIME = Summary("request_processing_seconds", "Time spent processing requ
 REQUEST_LATENCY = Histogram(
     "redfish_request_latency_seconds", "Time for Redfish request", ["host"]
 )
-up_gauge = Gauge("redfish_up", "Host up/down", ["host"])
-error_counter = Counter(
+UP_GAUGE = Gauge("redfish_up", "Host up/down", ["host"])
+ERROR_COUNTER = Counter(
     "redfish_errors_total", "Total Redfish errors", ["host", "error"]
 )
-voltage_gauge = Gauge(
+VOLTAGE_GAUGE = Gauge(
     "redfish_psu_line_input_voltage_volts",
     "Line Input Voltage per PSU",
     ["host", "psu_serial"],
 )
-watts_gauge = Gauge(
+WATTS_GAUGE = Gauge(
     "redfish_psu_power_input_watts", "Power Input Watts per PSU", ["host", "psu_serial"]
 )
-amps_gauge = Gauge(
+AMPS_GAUGE = Gauge(
     "redfish_psu_input_amps", "Current draw in Amps per PSU", ["host", "psu_serial"]
 )
 # set info metric
-system_info = Info(
+SYSTEM_INFO = Info(
     "redfish_system_info", "System information (model, serial, etc.)", ["host"]
 )
 
@@ -96,72 +105,76 @@ async def process_request(t):
     await asyncio.sleep(t)
 
 
+async def probe_vendor(session, host: HostConfig) -> str | None:
+    """Probe the vendor of the Redfish host."""
+    try:
+        async with session.get(
+            f"https://{host.fqdn}/redfish/v1/", ssl=False, timeout=10
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                vendor = data.get("Vendor", "")
+                logging.debug("Detected vendor for %s: %s", host.fqdn, vendor)
+                return vendor
+            logging.warning(
+                "Vendor probe failed on %s: HTTP %s", host.fqdn, resp.status
+            )
+    except Exception as e:
+        logging.warning("Vendor probe failed for %s: %s", host.fqdn, e)
+    return None
+
+
+async def login_hpe(session, host: HostConfig) -> bool:
+    """Login to HPE Redfish API and set session token."""
+    login_url = f"https://{host.fqdn}/redfish/v1/SessionService/Sessions"
+    payload = {"UserName": host.username, "Password": host.password}
+
+    try:
+        async with session.post(login_url, json=payload, ssl=False, timeout=10) as login_resp:
+            if login_resp.status == 201:
+                host.session.token = login_resp.headers.get("X-Auth-Token")
+                host.session.logout_url = login_resp.headers.get("Location")
+
+                if not host.session.token or not host.session.logout_url:
+                    raise RuntimeError("Invalid login response")
+
+                logging.info("New session token obtained for %s", host.fqdn)
+                return True
+            logging.warning(
+                "Login failed for %s: HTTP %s", host.fqdn, login_resp.status
+            )
+    except Exception as e:
+        logging.warning("Login failed for %s: %s", host.fqdn, e)
+    return False
+
+
 async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
-    """Fetch JSON from Redfish with retry/backoff"""
+    """Fetch JSON from Redfish with retry/backoff."""
     if host.should_skip():
         logging.warning(
             "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
         )
-        up_gauge.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn).set(0)
         return None
 
-    if not host.vendor:
-        try:
-            async with session.get(
-                f"https://{host.fqdn}/redfish/v1/", ssl=False, timeout=10
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    host.vendor = data.get("Vendor", "")
-                    logging.debug("Detected vendor for %s: %s", host.fqdn, host.vendor)
-                else:
-                    logging.warning(
-                        "Vendor probe failed on %s: HTTP %s", host.fqdn, resp.status
-                    )
-        except Exception as e:
-            logging.warning("Vendor probe failed for %s: %s", host.fqdn, e)
+    # Probe vendor if not already known
+    if not host.session.vendor:
+        host.session.vendor = await probe_vendor(session, host)
 
-    is_hpe = host.vendor and host.vendor.strip().upper().startswith("HPE")
+    is_hpe = host.session.vendor and host.session.vendor.strip().upper().startswith("HPE")
 
     for attempt in range(1, host.max_retries + 1):
         try:
             headers = {}
 
             if is_hpe:
-                # Try to reuse existing session token
-                if host.session_token:
-                    headers["X-Auth-Token"] = host.session_token
-                    logging.debug("Reusing cached session token for %s", host.fqdn)
-                else:
-                    # Need to login and store new session token
-                    # HPE Redfish login
-                    login_url = (
-                        f"https://{host.fqdn}/redfish/v1/SessionService/Sessions"
-                    )
-                    payload = {"UserName": host.username, "Password": host.password}
-                    async with session.post(
-                        login_url, json=payload, ssl=False, timeout=10
-                    ) as login_resp:
-                        if login_resp.status == 201:
-                            host.session_token = login_resp.headers.get(
-                                "X-Auth-Token"
-                            )  # as response in header
-                            if not host.session_token:
-                                raise RuntimeError("No X-Auth-Token in login response")
-                            host.session_logout = login_resp.headers.get(
-                                "Location"
-                            )  # as response in header
-                            if not host.session_logout:
-                                raise RuntimeError("No Location in login response")
-                            headers["X-Auth-Token"] = host.session_token
-                            logging.info("New session token obtained for %s", host.fqdn)
-                        else:
-                            logging.warning(
-                                "Login failed for %s: HTTP %s",
-                                host.fqdn,
-                                login_resp.status,
-                            )
-                            continue  # retry login next attempt
+                # Handle HPE session token
+                if not host.session.token:
+                    if not await login_hpe(session, host):
+                        # Retry login next attempt
+                        continue
+
+                headers["X-Auth-Token"] = host.session.token
 
                 async with session.get(
                     url, headers=headers, ssl=False, timeout=10
@@ -174,7 +187,7 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
                         logging.warning(
                             "Invalid token for %s, reauthenticating...", host.fqdn
                         )
-                        host.session_token = None
+                        host.session.token = None
                         continue
                     logging.warning(
                         "HTTP %s from %s (attempt %d)", resp.status, host.fqdn, attempt
@@ -258,7 +271,7 @@ def get_power_resource_info(
     return None, None
 
 
-def get_power_supplies_url(
+def process_power_supplies_url(
     power_data: dict, power_resource_type: str, host_fqdn: str
 ) -> str | None:
     """Get the URL for PowerSupplies based on the Power resource type."""
@@ -277,8 +290,9 @@ def get_power_supplies_url(
     return None
 
 
-def get_power_supplies(
-    power_data: dict, power_resource_type: str, host_fqdn: str
+def process_power_supplies(
+    power_data: dict,
+    power_resource_type: str,
 ) -> list[dict] | None:
     """Get PowerSupplies data based on the Power resource type."""
     if power_resource_type == "PowerSubsystem":
@@ -342,18 +356,20 @@ async def process_power_supply(
 
     # Update Prometheus metrics
     if line_input_v is not None:
-        voltage_gauge.labels(host=host.fqdn, psu_serial=serial).set(line_input_v)
+        VOLTAGE_GAUGE.labels(host=host.fqdn, psu_serial=serial).set(line_input_v)
     if watts_input is not None:
-        watts_gauge.labels(host=host.fqdn, psu_serial=serial).set(watts_input)
+        WATTS_GAUGE.labels(host=host.fqdn, psu_serial=serial).set(watts_input)
     if amps_input is not None:
-        amps_gauge.labels(host=host.fqdn, psu_serial=serial).set(amps_input)
+        AMPS_GAUGE.labels(host=host.fqdn, psu_serial=serial).set(amps_input)
+
 
 def normalize_url(url: str) -> str:
     """Ensure URL does not end with a trailing slash."""
     # I needed this for realy old Redfish versions :S (<1.6.0)
-    if url.endswith('/'):
+    if url.endswith("/"):
         return url[:-1]  # Remove trailing slash
     return url
+
 
 async def get_power_data(session, host: HostConfig):
     """Query Redfish for power data and update Prometheus metrics"""
@@ -361,7 +377,7 @@ async def get_power_data(session, host: HostConfig):
         logging.warning(
             "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
         )
-        up_gauge.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn).set(0)
         return
 
     # Start time measurement
@@ -371,26 +387,26 @@ async def get_power_data(session, host: HostConfig):
     if not resources:
         logging.error("Could not discover any resources for %s", host.fqdn)
         host.mark_failure()
-        up_gauge.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn).set(0)
         return
-    
+
     chassis_url = resources.get("Chassis")
     if not chassis_url:
         logging.error("No valid Chassis URL found for %s", host.fqdn)
         host.mark_failure()
-        up_gauge.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn).set(0)
         return
 
     # Mark host as up
     host.mark_success()
-    up_gauge.labels(host=host.fqdn).set(1)
+    UP_GAUGE.labels(host=host.fqdn).set(1)
 
     # Get chassis ressource
     chassis_url = f"https://{host.fqdn}{chassis_url}"
     chassis_data = await fetch_with_retry(session, host, chassis_url)
     if not chassis_data:
         host.mark_failure()
-        up_gauge.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn).set(0)
         return
 
     # loop over each member in chassis ressource
@@ -509,7 +525,7 @@ async def get_system_info(session, host: HostConfig):
         serial_number = system_data.get("SerialNumber")
 
         # Hier könnte ihre Werbung stehen
-        system_info.labels(host=host.fqdn).info(
+        SYSTEM_INFO.labels(host=host.fqdn).info(
             {
                 "manufacturer": manufacturer,
                 "model": model,
@@ -521,15 +537,13 @@ async def get_system_info(session, host: HostConfig):
 
 async def logout_host(session, host):
     """Clean logout for Redfish with session tokens"""
-    if not host.session_token:
-        return
-    if not host.session_logout:
+    if not host.session.token or not host.session.logout_url:
         return
     try:
-        logout_url = f"{host.session_logout}"  # the full URL is here!
+        logout_url = host.session.logout_url
         async with session.delete(
             logout_url,
-            headers={"X-Auth-Token": host.session_token},
+            headers={"X-Auth-Token": host.session.token},
             ssl=False,
             timeout=5,
         ) as resp:
@@ -542,7 +556,8 @@ async def logout_host(session, host):
     except Exception as e:
         logging.warning("Error during logout for %s: %s", host.fqdn, e)
     finally:
-        host.session_token = None
+        host.session.token = None
+        host.session.logout_url = None
 
 
 async def run_exporter(config, stop_event):
