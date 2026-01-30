@@ -1,0 +1,16 @@
+---
+interval: 10
+port: 8000
+username: user
+password: secrets
+chassis: ["1"] # Strings, not integers!
+hosts:
+  - fqdn: host1.example.com
+    username: user1
+    password: secret1
+  - fqdn: host2.example.com
+    username: user2
+    password: secret2
+  - fqdn: host3.example.com
+    chassis: ["0"] # Strings, not integers!
+  - fqdn: host4.example.com
