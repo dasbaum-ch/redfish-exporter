@@ -1,4 +1,5 @@
 .ansible
 .vscode
+.ruff_cache
 
 config.y*ml
