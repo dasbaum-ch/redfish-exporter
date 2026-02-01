@@ -1,11 +1,9 @@
 # Redfish-Exporter
-
 A Python-based Prometheus exporter for collecting power data (Watts, Volts, Amperes) from bare metal servers using the Redfish API. This tool supports multiple vendors (e.g., HPE, Supermicro) and is designed to run cross-platform on Linux and Windows.
 
 I've createtd this python script to collect Power data to analyse Watts, Volts and Amperes. If there is a better solution or you want more feature, feel free to replace me or expand my prometheus exporter.
 
 ## Features
-
 - Collects power metrics: Watts, Volts, and Amperes.
 - Supports multiple vendors (HPE, Supermicro, etc.).
 - Cross-platform compatibility (Linux and Windows).
@@ -14,7 +12,6 @@ I've createtd this python script to collect Power data to analyse Watts, Volts a
 - Docker support.
 
 ## Usage
-
 ```
 usage: python main.py [-h] [--config CONFIG] [--port PORT]
 
@@ -29,7 +26,6 @@ options:
 # Install
 
 ## Requirements
-
 * python 3.8+
 * see `pyproject.tom`
 
@@ -42,11 +38,9 @@ uv lock --upgrade --refresh
 ```
 
 ## Configuration
-
 Create `config.yaml` with following structure:
 
 ### Basic Configuration
-
 ```yaml
 ---
 interval: 5
@@ -62,7 +56,6 @@ hosts:
 ```
 
 ### Advanced Configuration
-
 ```yaml
 ---
 interval: 5
@@ -91,7 +84,6 @@ hosts:
 The `port`, `interval` and `interval` are optional and can be be overridden by command-line arguments. Default values are hardcoded.
 
 # Docker / Container
-
 To run the Redfish Exporter in a Docker container:
 
 ```
@@ -102,7 +94,6 @@ docker run -it --rm --name redfish_exporter_app -p 8000:8000 redfish_exporter:la
 # Legacy Installation
 
 ## Python Dependencies
-
 ```bash
 mkdir /srv/redfish-exporter
 # or
@@ -112,32 +103,26 @@ uv sync --locked
 ```
 
 ## Create user
-
 ```bash
 sudo useradd -r -s /bin/false redfish
 ```
 
 ## Systemd Service
-
 1. Copy the systemd unit file:
-
 ```bash
 sudo cp redfish-exporter.service /etc/systemd/system/redfish-exporter.service
 ```
 
 2. Reload and start the service:
-
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now redfish-exporter.service
 ```
 
 # License
-
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
 # Testet on Hardware
-
 Here some Server's that I have successfully testet:
 
 | Vendor     | Model                | Redfish Version |
