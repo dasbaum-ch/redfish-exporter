@@ -142,9 +142,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now redfish-exporter.service
 ```
 
+---
+
 # License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
+
+---
 
 # Testet on Hardware
 
