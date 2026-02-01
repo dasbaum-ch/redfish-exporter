@@ -96,6 +96,8 @@ hosts:
 
 The `port`, `interval` are optional and can be be overridden by command-line arguments. Default values are hardcoded.
 
+---
+
 # Docker / Container
 
 To run the Redfish Exporter in a Docker container:
