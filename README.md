@@ -11,6 +11,17 @@ I've createtd this python script to collect Power data to analyse Watts, Volts a
 - Configurable via YAML.
 - Docker support.
 
+## Metrics Overview
+| Metrik                               | Typ       | Beschreibung                                                   |
+| ------------------------------------ | --------- | -------------------------------------------------------------- |
+| redfish_up                           | Gauge     | Status from host (1 = reachable, 0 = not reachable).           |
+| redfish_psu_line_input_voltage_volts | Gauge     | Voltages per powersupply (label: host, psu_serial).            |
+| redfish_psu_power_input_watts        | Gauge     | Watts per powersupply (label: host, psu_serial).               |
+| redfish_psu_input_amps               | Gauge     | Amperes per powersupply (label: host, psu_serial).             |
+| redfish_system_info                  | Info      | Systeminformation (Vendor, Model, Serial, Redfish Version).    |
+| redfish_request_latency_seconds      | Histogram | Latency (label: host).                                         |
+| redfish_errors_total                 | Counter   | Number of errors per host and error type (label: host, error). |
+
 ## Usage
 ```
 usage: python main.py [-h] [--config CONFIG] [--port PORT]
@@ -84,6 +95,24 @@ hosts:
 ```
 
 The `port`, `interval` and `interval` are optional and can be be overridden by command-line arguments. Default values are hardcoded.
+
+### Prometheus Configuration
+```
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "redfish_exporter"
+    static_configs:
+      - targets: ["localhost:8000"] # Adjust to your config
+    metrics_path: /metrics
+    scrape_interval: 15s
+```
 
 # Docker / Container
 To run the Redfish Exporter in a Docker container:
