@@ -26,7 +26,9 @@ options:
 # Install
 
 ## Requirements
+* just (optional)
 * python 3.8+
+* uv
 * see `pyproject.tom`
 
 Install the dependencies using `uv`:
