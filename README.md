@@ -1,4 +1,4 @@
-# Description
+# Redfish-Exporter
 
 I've createtd this python script to collect Power data to analyse Watts, Volts and Amperes. If there is a better solution, feel free to replace me.
 
