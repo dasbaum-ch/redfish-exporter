@@ -107,6 +107,8 @@ docker buildx build -t redfish_exporter .
 docker run -it --rm --name redfish_exporter_app -p 8000:8000 redfish_exporter:latest
 ```
 
+---
+
 # Legacy Installation
 
 ## Python Dependencies
