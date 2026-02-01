@@ -12,7 +12,7 @@ I've createtd this python script to collect Power data to analyse Watts, Volts a
 - Docker support.
 
 ## Metrics Overview
-| Metrik                               | Typ       | Beschreibung                                                   |
+| Metric                               | Typ       | Beschreibung                                                   |
 | ------------------------------------ | --------- | -------------------------------------------------------------- |
 | redfish_up                           | Gauge     | Status from host (1 = reachable, 0 = not reachable).           |
 | redfish_psu_line_input_voltage_volts | Gauge     | Voltages per powersupply (label: host, psu_serial).            |
