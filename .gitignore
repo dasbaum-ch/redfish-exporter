@@ -1,5 +1,6 @@
 .ansible
 .vscode
 .ruff_cache
+.venv
 
 config.y*ml
