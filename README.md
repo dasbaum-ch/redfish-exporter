@@ -4,8 +4,6 @@ A Python-based Prometheus exporter for collecting power data (Watts, Volts, Ampe
 
 I've createtd this python script to collect Power data to analyse Watts, Volts and Amperes. If there is a better solution or you want more feature, feel free to replace me or expand my prometheus exporter.
 
----
-
 ## Features
 
 - Collects power metrics: Watts, Volts, and Amperes.
@@ -14,8 +12,6 @@ I've createtd this python script to collect Power data to analyse Watts, Volts a
 - Graceful error handling and retry logic.
 - Configurable via YAML.
 - Docker support.
-
----
 
 ## Usage
 
@@ -29,8 +25,6 @@ options:
   --config CONFIG  Path to config file
   --port PORT      Override port from config file
 ```
-
----
 
 # Install
 
@@ -94,9 +88,7 @@ hosts:
     password: secret5
 ```
 
-The `port`, `interval` are optional and can be be overridden by command-line arguments. Default values are hardcoded.
-
----
+The `port`, `interval` and `interval` are optional and can be be overridden by command-line arguments. Default values are hardcoded.
 
 # Docker / Container
 
@@ -106,8 +98,6 @@ To run the Redfish Exporter in a Docker container:
 docker buildx build -t redfish_exporter .
 docker run -it --rm --name redfish_exporter_app -p 8000:8000 redfish_exporter:latest
 ```
-
----
 
 # Legacy Installation
 
@@ -142,22 +132,16 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now redfish-exporter.service
 ```
 
----
-
 # License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
-
----
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
 # Testet on Hardware
 
 Here some Server's that I have successfully testet:
-* Supermicro
-  * AS -5126GS-TNRT2
-    * Redfish 1.21.0
-  * AS -1124US-TNRP
-    * Redfish 1.8.0
-* HPE
-  * ProLiant DL380 Gen10
-  * Redfish 1.6.0
+
+| Vendor     | Model                | Redfish Version |
+| ---------- | -------------------- | --------------- |
+| Supermicro | AS-5126GS-TNRT2      | 1.21.0          |
+|            | AS-1124US-TNRP       | 1.8.0           |
+| HPE        | ProLiant DL380 Gen10 | 1.6.0           |
