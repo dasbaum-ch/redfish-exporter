@@ -30,9 +30,11 @@ usage: python main.py [-h] [--config CONFIG] [--port PORT]
 Redfish Prometheus Exporter
 
 options:
-  -h, --help       show this help message and exit
-  --config CONFIG  Path to config file
-  --port PORT      Override port from config file
+  -h, --help           show this help message and exit
+  --config CONFIG      Path to config file
+  --port PORT          Override port from config file
+  --interval INTERVAL  Override interval from config file
+  --show-deprecated    Enable deprecated warnings in log
 ```
 
 # Install

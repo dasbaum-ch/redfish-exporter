@@ -114,7 +114,7 @@ AMPS_GAUGE = Gauge(
 )
 # set info metric
 SYSTEM_INFO = Info(
-    "redfish_system_info", "System information (model, serial, etc.)", ["host", "group"]
+    "redfish_system", "System information (model, serial, etc.)", ["host", "group"]
 )
 
 
@@ -275,7 +275,7 @@ async def discover_redfish_resources(
 
 
 def get_power_resource_info(
-    member_data: dict, host_fqdn: str
+    member_data: dict, host_fqdn: str, show_deprecated_warnings
 ) -> tuple[str | None, str | None]:
     """Get the URL and type of Power resource (PowerSubsystem or Power)."""
     # Try PowerSubsystem (new Redfish versions)
@@ -286,11 +286,12 @@ def get_power_resource_info(
     # Try Power for older Redfish versions
     power_url = member_data.get("Power", {}).get("@odata.id")
     if power_url:
-        logging.warning(
-            "DEPRECATED: Host %s uses old Redfish API (Power instead of PowerSubsystem). "
-            "Consider updating the firmware for full compatibility.",
-            host_fqdn,
-        )
+        if show_deprecated_warnings:
+            logging.warning(
+                "DEPRECATED: Host %s uses old Redfish API (Power instead of PowerSubsystem). "
+                "Consider updating the firmware for full compatibility.",
+                host_fqdn,
+            )
         return f"https://{host_fqdn}{power_url}", "Power"
 
     # Nothing found -> Error
@@ -390,7 +391,7 @@ def normalize_url(url: str) -> str:
     return url
 
 
-async def get_power_data(session, host: HostConfig):
+async def get_power_data(session, host: HostConfig, show_deprecated_warnings):
     """Query Redfish for power data and update Prometheus metrics"""
     if host.should_skip():
         logging.warning(
@@ -441,7 +442,7 @@ async def get_power_data(session, host: HostConfig):
 
         # Get Power ressource (fallback to "Power")
         power_resource_url, power_resource_type = get_power_resource_info(
-            member_data, host.fqdn
+            member_data, host.fqdn, show_deprecated_warnings
         )
         if not power_resource_url:
             continue
@@ -591,7 +592,7 @@ async def logout_host(session, host):
         host.session.logout_url = None
 
 
-async def run_exporter(config, stop_event):
+async def run_exporter(config, stop_event, show_deprecated_warnings):
     """Main loop"""
     port = config.get("port", 8000)
     default_username = config.get("username")
@@ -633,7 +634,7 @@ async def run_exporter(config, stop_event):
             while not stop_event.is_set():
                 tasks = []
                 for hc in host_objs:
-                    tasks.append(get_power_data(session, hc))
+                    tasks.append(get_power_data(session, hc, show_deprecated_warnings))
                     tasks.append(get_system_info(session, hc))
                 await asyncio.gather(*tasks)
                 await process_request(interval)
@@ -649,13 +650,18 @@ async def run_exporter(config, stop_event):
 
 async def main():
     """Modern asyncio entry point"""
-    parser = argparse.ArgumentParser(description="Redfish Prometheus Exporter")
-    parser.add_argument("--config", default="config.yaml", help="Path to config file")
-    parser.add_argument("--port", type=int, help="Override port from config file")
+    parser = argparse.ArgumentParser(description="Redfish Prometheus Exporter.")
+    parser.add_argument("--config", default="config.yaml", help="Path to config file.")
+    parser.add_argument("--port", type=int, help="Override port from config file.")
     parser.add_argument(
-        "--interval", type=int, help="Override interval from config file"
+        "--interval", type=int, help="Override interval from config file."
     )
+    parser.add_argument("--show-deprecated", action="store_true", help="Enable deprecated warnings in log.")
     args = parser.parse_args()
+
+    show_deprecated_warnings = args.show_deprecated
+    if show_deprecated_warnings:
+        logging.warning("Deprecated warnings are enabled.")
 
     # Load YAML config
     with open(args.config, "r", encoding="utf-8") as file:
@@ -667,13 +673,14 @@ async def main():
     if args.interval is not None:
         config["interval"] = args.interval
 
+
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     # Handle SIGINT (Ctrl+C) and SIGTERM
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop_event.set)
 
-    await run_exporter(config, stop_event)
+    await run_exporter(config, stop_event, show_deprecated_warnings)
 
 
 if __name__ == "__main__":
