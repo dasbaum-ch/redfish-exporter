@@ -4,6 +4,7 @@ port: 8000
 username: user
 password: secrets
 chassis: ["1"] # Strings, not integers!
+group: production
 hosts:
   - fqdn: host1.example.com
     username: user1

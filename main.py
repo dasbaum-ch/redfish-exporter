@@ -56,6 +56,7 @@ class HostConfig:
     username: str
     password: str
     chassis: list[str] | None = None
+    group: str = "none"
     max_retries: int = 3  # 3 retires
     backoff: int = 2  # wait 2 seconds
     cool_down: int = 120  # seconds to wait after too many failures
@@ -92,24 +93,28 @@ REQUEST_TIME = Summary("request_processing_seconds", "Time spent processing requ
 REQUEST_LATENCY = Histogram(
     "redfish_request_latency_seconds", "Time for Redfish request", ["host"]
 )
-UP_GAUGE = Gauge("redfish_up", "Host up/down", ["host"])
+UP_GAUGE = Gauge("redfish_up", "Host up/down", ["host", "group"])
 ERROR_COUNTER = Counter(
     "redfish_errors_total", "Total Redfish errors", ["host", "error"]
 )
 VOLTAGE_GAUGE = Gauge(
     "redfish_psu_line_input_voltage_volts",
     "Line Input Voltage per PSU",
-    ["host", "psu_serial"],
+    ["host", "psu_serial", "group"],
 )
 WATTS_GAUGE = Gauge(
-    "redfish_psu_power_input_watts", "Power Input Watts per PSU", ["host", "psu_serial"]
+    "redfish_psu_power_input_watts",
+    "Power Input Watts per PSU",
+    ["host", "psu_serial", "group"],
 )
 AMPS_GAUGE = Gauge(
-    "redfish_psu_input_amps", "Current draw in Amps per PSU", ["host", "psu_serial"]
+    "redfish_psu_input_amps",
+    "Current draw in Amps per PSU",
+    ["host", "psu_serial", "group"],
 )
 # set info metric
 SYSTEM_INFO = Info(
-    "redfish_system_info", "System information (model, serial, etc.)", ["host"]
+    "redfish_system_info", "System information (model, serial, etc.)", ["host", "group"]
 )
 
 
@@ -170,7 +175,7 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
         logging.warning(
             "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
         )
-        UP_GAUGE.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return None
 
     # Probe vendor if not already known
@@ -391,7 +396,7 @@ async def get_power_data(session, host: HostConfig):
         logging.warning(
             "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
         )
-        UP_GAUGE.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return
 
     # Start time measurement
@@ -402,17 +407,17 @@ async def get_power_data(session, host: HostConfig):
     if not resources or not resources.chassis:
         logging.error("Could not discover any resources for %s", host.fqdn)
         host.mark_failure()
-        UP_GAUGE.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return
 
     host.mark_success()
-    UP_GAUGE.labels(host=host.fqdn).set(1)
+    UP_GAUGE.labels(host=host.fqdn, group=host.group).set(1)
 
     chassis_url = f"https://{host.fqdn}{resources.chassis}"
     chassis_data = await fetch_with_retry(session, host, chassis_url)
     if not chassis_data:
         host.mark_failure()
-        UP_GAUGE.labels(host=host.fqdn).set(0)
+        UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return
 
     for chassis_member in chassis_data.get("Members", []):
@@ -498,13 +503,17 @@ async def get_power_data(session, host: HostConfig):
 def update_prometheus_metrics(host: HostConfig, metrics: PowerMetrics):
     """Update Prometheus metrics with PowerMetrics data."""
     if metrics.voltage is not None and metrics.serial:
-        VOLTAGE_GAUGE.labels(host=host.fqdn, psu_serial=metrics.serial).set(
-            metrics.voltage
-        )
+        VOLTAGE_GAUGE.labels(
+            host=host.fqdn, psu_serial=metrics.serial, group=host.group
+        ).set(metrics.voltage)
     if metrics.watts is not None and metrics.serial:
-        WATTS_GAUGE.labels(host=host.fqdn, psu_serial=metrics.serial).set(metrics.watts)
+        WATTS_GAUGE.labels(
+            host=host.fqdn, psu_serial=metrics.serial, group=host.group
+        ).set(metrics.watts)
     if metrics.amps is not None and metrics.serial:
-        AMPS_GAUGE.labels(host=host.fqdn, psu_serial=metrics.serial).set(metrics.amps)
+        AMPS_GAUGE.labels(
+            host=host.fqdn, psu_serial=metrics.serial, group=host.group
+        ).set(metrics.amps)
 
 
 async def get_system_info(session, host: HostConfig):
@@ -547,7 +556,7 @@ async def get_system_info(session, host: HostConfig):
         serial_number = system_data.get("SerialNumber")
 
         # Hier könnte ihre Werbung stehen
-        SYSTEM_INFO.labels(host=host.fqdn).info(
+        SYSTEM_INFO.labels(host=host.fqdn, group=host.group).info(
             {
                 "manufacturer": manufacturer,
                 "model": model,
@@ -587,7 +596,8 @@ async def run_exporter(config, stop_event):
     port = config.get("port", 8000)
     default_username = config.get("username")
     default_password = config.get("password")
-    default_chassis = config.get("chassis")
+    default_chassis = config.get("chassis", "1")
+    default_group = config.get("group", "none")
     hosts = config["hosts"]
     interval = config.get("interval", 10)
 
@@ -604,10 +614,15 @@ async def run_exporter(config, stop_event):
                 username=host_entry.get("username", default_username),
                 password=host_entry.get("password", default_password),
                 chassis=host_entry.get("chassis", default_chassis),
+                group=host_entry.get("group", default_group),
             )
         else:
             hc = HostConfig(
-                fqdn=host_entry, username=default_username, password=default_password
+                fqdn=host_entry,
+                username=default_username,
+                password=default_password,
+                chassis=default_chassis,
+                group=default_group,
             )
         host_objs.append(hc)
 

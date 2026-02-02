@@ -6,13 +6,14 @@ I've createtd this python script to collect Power data to analyse Watts, Volts a
 ## Features
 - Collects power metrics: Watts, Volts, and Amperes.
 - Supports multiple vendors (HPE, Supermicro, etc.).
+- Supports grouping.
 - Cross-platform compatibility (Linux and Windows).
 - Graceful error handling and retry logic.
 - Configurable via YAML.
 - Docker support.
 
 ## Metrics Overview
-| Metric                               | Typ       | Beschreibung                                                   |
+| Metric                               | Typ       | Description                                                    |
 | ------------------------------------ | --------- | -------------------------------------------------------------- |
 | redfish_up                           | Gauge     | Status from host (1 = reachable, 0 = not reachable).           |
 | redfish_psu_line_input_voltage_volts | Gauge     | Voltages per powersupply (label: host, psu_serial).            |
@@ -29,13 +30,12 @@ usage: python main.py [-h] [--config CONFIG] [--port PORT]
 Redfish Prometheus Exporter
 
 options:
-  -h, --help            show this help message and exit
-  --config CONFIG       Path to config file
-  --port PORT           Override port from config file
-  --interval INTERVAL   Override interval from config file
+  -h, --help       show this help message and exit
+  --config CONFIG  Path to config file
+  --port PORT      Override port from config file
 ```
 
-# Installation
+# Install
 
 ## Requirements
 * just (optional)
@@ -77,15 +77,18 @@ port: 8000
 username: user1
 password: secret1
 chassis: ["1"]
+group: development # set default group for all hosts
 hosts:
   - fqdn: host1.example.net
     username: user2
     password: secret2
     chassis: ["0"]
+    group: production # use group for specific host
   - fqdn: host2.example.net
     username: user3
     password: secret3
     chassis: ["1"]
+    group: stage
   - fqdn: host3.example.net
     username: user4
     password: secret4
@@ -162,4 +165,3 @@ Here some Server's that I have successfully testet:
 | Supermicro | AS-5126GS-TNRT2      | 1.21.0          |
 |            | AS-1124US-TNRP       | 1.8.0           |
 | HPE        | ProLiant DL380 Gen10 | 1.6.0           |
-
