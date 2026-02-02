@@ -98,7 +98,7 @@ ERROR_COUNTER = Counter(
     "redfish_errors_total", "Total Redfish errors", ["host", "error"]
 )
 VOLTAGE_GAUGE = Gauge(
-    "redfish_psu_input_voltage_volts",
+    "redfish_psu_input_voltage",
     "Line Input Voltage per PSU",
     ["host", "psu_serial", "group"],
 )

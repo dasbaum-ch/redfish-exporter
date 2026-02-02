@@ -13,15 +13,15 @@ I've createtd this python script to collect Power data to analyse Watts, Volts a
 - Docker support.
 
 ## Metrics Overview
-| Metric                               | Typ       | Description                                                    |
-| ------------------------------------ | --------- | -------------------------------------------------------------- |
-| redfish_up                           | Gauge     | Status from host (1 = reachable, 0 = not reachable).           |
-| redfish_psu_line_input_voltage_volts | Gauge     | Voltages per powersupply (label: host, psu_serial).            |
-| redfish_psu_power_input_watts        | Gauge     | Watts per powersupply (label: host, psu_serial).               |
-| redfish_psu_input_amps               | Gauge     | Amperes per powersupply (label: host, psu_serial).             |
-| redfish_system_info                  | Info      | Systeminformation (Vendor, Model, Serial, Redfish Version).    |
-| redfish_request_latency_seconds      | Histogram | Latency (label: host).                                         |
-| redfish_errors_total                 | Counter   | Number of errors per host and error type (label: host, error). |
+| Metric                          | Typ       | Description                                                    |
+|---------------------------------|-----------|----------------------------------------------------------------|
+| redfish_up                      | Gauge     | Status from host (1 = reachable, 0 = not reachable).           |
+| redfish_psu_input_voltage       | Gauge     | Voltages per powersupply (label: host, psu_serial).            |
+| redfish_psu_input_watts         | Gauge     | Watts per powersupply (label: host, psu_serial).               |
+| redfish_psu_input_amps          | Gauge     | Amperes per powersupply (label: host, psu_serial).             |
+| redfish_system_info             | Info      | Systeminformation (Vendor, Model, Serial, Redfish Version).    |
+| redfish_request_latency_seconds | Histogram | Latency (label: host).                                         |
+| redfish_errors_total            | Counter   | Number of errors per host and error type (label: host, error). |
 
 ## Usage
 ```
@@ -163,7 +163,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 Here some Server's that I have successfully testet:
 
 | Vendor     | Model                | Redfish Version |
-| ---------- | -------------------- | --------------- |
+|------------|----------------------|-----------------|
 | Supermicro | AS-5126GS-TNRT2      | 1.21.0          |
 |            | AS-1124US-TNRP       | 1.8.0           |
 | HPE        | ProLiant DL380 Gen10 | 1.6.0           |
