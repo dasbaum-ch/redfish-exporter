@@ -553,8 +553,14 @@ async def get_system_info(session, host: HostConfig):
             continue
 
         manufacturer = system_data.get("Manufacturer")
+        if manufacturer is None:
+            manufacturer = "<no data>"
         model = system_data.get("Model")
+        if model is None:
+            model = "<no data>"
         serial_number = system_data.get("SerialNumber")
+        if serial_number is None:
+            serial_number = "<no data>"
 
         # Hier könnte ihre Werbung stehen
         SYSTEM_INFO.labels(host=host.fqdn, group=host.group).info(
