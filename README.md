@@ -160,7 +160,7 @@ sudo systemctl enable --now redfish-exporter.service
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
 # Tested on Hardware
-Here some servers that I have successfully tested:
+Here are some servers that I have successfully tested:
 
 | Vendor     | Model                | Redfish Version |
 |------------|----------------------|-----------------|
