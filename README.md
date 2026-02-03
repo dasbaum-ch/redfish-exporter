@@ -1,7 +1,7 @@
 # Redfish-Exporter
 A Python-based Prometheus exporter for collecting power data (Watts, Volts, Amperes) from bare metal servers using the Redfish API. This tool supports multiple vendors (e.g., HPE, Supermicro) and is designed to run cross-platform on Linux and Windows.
 
-I've createtd this Python script to collect power data to analyse Watts, Volts and Amperes. If there is a better solution or you want more feature, feel free to replace me or expand my prometheus exporter.
+I've created this Python script to collect power data to analyse Watts, Volts and Amperes. If there is a better solution or you want more feature, feel free to replace me or expand my prometheus exporter.
 
 ## Features
 - Collects power metrics: Watts, Volts, and Amperes.
