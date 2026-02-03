@@ -1,7 +1,7 @@
 # Redfish-Exporter
 A Python-based Prometheus exporter for collecting power data (Watts, Volts, Amperes) from bare metal servers using the Redfish API. This tool supports multiple vendors (e.g., HPE, Supermicro) and is designed to run cross-platform on Linux and Windows.
 
-I've createtd this python script to collect Power data to analyse Watts, Volts and Amperes. If there is a better solution or you want more feature, feel free to replace me or expand my prometheus exporter.
+I've created this Python script to collect power data to analyse Watts, Volts and Amperes. If there is a better solution or you want more feature, feel free to replace me or expand my prometheus exporter.
 
 ## Features
 - Collects power metrics: Watts, Volts, and Amperes.
@@ -16,7 +16,7 @@ I've createtd this python script to collect Power data to analyse Watts, Volts a
 | Metric                          | Typ       | Description                                                    |
 |---------------------------------|-----------|----------------------------------------------------------------|
 | redfish_up                      | Gauge     | Status from host (1 = reachable, 0 = not reachable).           |
-| redfish_psu_input_voltage       | Gauge     | Voltages per powersupply (label: host, psu_serial).            |
+| redfish_psu_input_voltage       | Gauge     | Volts per powersupply (label: host, psu_serial).            |
 | redfish_psu_input_watts         | Gauge     | Watts per powersupply (label: host, psu_serial).               |
 | redfish_psu_input_amps          | Gauge     | Amperes per powersupply (label: host, psu_serial).             |
 | redfish_system_info             | Info      | Systeminformation (Vendor, Model, Serial, Redfish Version).    |
@@ -30,7 +30,7 @@ usage: python main.py [-h] [--config CONFIG] [--port PORT]
 Redfish Prometheus Exporter
 
 options:
-  -h, --help           show this help message and exit
+  -h, --help           Show this help message and exit
   --config CONFIG      Path to config file
   --port PORT          Override port from config file
   --interval INTERVAL  Override interval from config file
@@ -100,7 +100,7 @@ hosts:
     password: secret5
 ```
 
-The `port`, `interval` and `interval` are optional and can be be overridden by command-line arguments. Default values are hardcoded.
+The `port`, and `interval` arguments are optional and can be be overridden by command-line arguments. Default values are hardcoded.
 
 ### Prometheus Configuration
 ```
@@ -159,8 +159,8 @@ sudo systemctl enable --now redfish-exporter.service
 # License
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
-# Testet on Hardware
-Here some Server's that I have successfully testet:
+# Tested on Hardware
+Here are some servers that I have successfully tested:
 
 | Vendor     | Model                | Redfish Version |
 |------------|----------------------|-----------------|
