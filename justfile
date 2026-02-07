@@ -48,3 +48,11 @@ lint:
 # Format the code
 format:
     ruff format .
+
+setup:
+    uv sync
+    uv lock --upgrade --refresh
+    pre-commit install
+
+pre-commit:
+    pre-commit install
