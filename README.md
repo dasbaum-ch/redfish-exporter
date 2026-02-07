@@ -25,7 +25,7 @@ I've created this Python script to collect power data to analyse Watts, Volts an
 
 ## Usage
 ```
-usage: python main.py [-h] [--config CONFIG] [--port PORT]
+usage: python redfish-exporter [-h] [--config CONFIG] [--port PORT]
 
 Redfish Prometheus Exporter
 
