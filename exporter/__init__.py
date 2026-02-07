@@ -514,51 +514,76 @@ def update_prometheus_metrics(host: HostConfig, metrics: PowerMetrics):
 
 async def get_system_info(session, host: HostConfig):
     """Query Redfish for system data and update Prometheus metrics"""
-    
+
     if host.should_skip():
         logging.warning(
-            "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
+            "Skipping %s (in cool-down until %.1f)",
+            host.fqdn,
+            host.next_retry_time,
         )
+
         return
 
+
     # Get Redfish Version
+    
     root_url = f"https://{host.fqdn}/redfish/v1/"
+
     root_data = await fetch_with_retry(session, host, root_url)
+    
     if not root_data:
         host.mark_failure()
+        
         return
 
     redfish_version = root_data.get("RedfishVersion")
+    
+    
     # Get Manufacturer, Serial and Model
-    systems_url = f"https://{host.fqdn}/redfish/v1/Systems/"
-    systems_data = await fetch_with_retry(session, host, systems_url)
+    
+    systems_data = await fetch_with_retry(
+        session,
+        host,
+        systems_url=f"https://{host.fqdn}/redfish/v1/Systems/",
+    )
+    
     if not systems_data:
         host.mark_failure()
+        
         return
 
-    # loop for each system members
+    
+    # loop for each system members ---
     for system_member in systems_data.get("Members", []):
         system_url = system_member.get("@odata.id")
+
         if not system_url:
             continue
 
         system_data = await fetch_with_retry(
             session, host, f"https://{host.fqdn}{system_url}"
         )
+
         if not system_data:
             continue
 
         manufacturer = system_data.get("Manufacturer")
-        if manufacturer is None:
+
+        if not manufacturer:
             manufacturer = "<no data>"
+        
         model = system_data.get("Model")
-        if model is None:
+        
+        if not model:
             model = "<no data>"
+        
         serial_number = system_data.get("SerialNumber")
-        if serial_number is None:
+        
+        if not serial_number:
             serial_number = "<no data>"
 
-        # Hier könnte ihre Werbung stehen
+        # This block has been sponsored by Aperture Science.
+        #   We do what we must, because we can.
         SYSTEM_INFO.labels(host=host.fqdn, group=host.group).info(
             {
                 "manufacturer": manufacturer,
