@@ -2,10 +2,23 @@
 default:
     just --list
 
-# Install dependencies
-install:
+# Setup dependencies
+setup:
     uv sync
     uv lock --upgrade --refresh
+    pre-commit install
+
+# Lint the code
+lint:
+    ruff check .
+
+# Format the code
+format:
+    ruff format .
+
+# Setup pre-commit
+pre-commit:
+    pre-commit install
 
 # Run the exporter
 run:
@@ -40,19 +53,3 @@ install-systemd:
     sudo cp redfish-exporter.service /etc/systemd/system/redfish-exporter.service
     sudo systemctl daemon-reload
     sudo systemctl enable --now redfish-exporter.service
-
-# Lint the code
-lint:
-    ruff check .
-
-# Format the code
-format:
-    ruff format .
-
-setup:
-    uv sync
-    uv lock --upgrade --refresh
-    pre-commit install
-
-pre-commit:
-    pre-commit install
