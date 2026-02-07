@@ -4,6 +4,7 @@
     "config:recommended"
   ],
   "enabledManagers": [
+    "pre-commit",
     "pep621",
     "dockerfile",
     "docker-compose"
