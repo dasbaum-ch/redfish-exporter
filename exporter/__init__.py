@@ -514,6 +514,7 @@ def update_prometheus_metrics(host: HostConfig, metrics: PowerMetrics):
 
 async def get_system_info(session, host: HostConfig):
     """Query Redfish for system data and update Prometheus metrics"""
+    
     if host.should_skip():
         logging.warning(
             "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
@@ -570,10 +571,13 @@ async def get_system_info(session, host: HostConfig):
 
 async def logout_host(session, host):
     """Clean logout for Redfish with session tokens"""
+
     if not host.session.token or not host.session.logout_url:
         return
+
     try:
         logout_url = host.session.logout_url
+
         async with session.delete(
             logout_url,
             headers={"X-Auth-Token": host.session.token},
@@ -581,20 +585,24 @@ async def logout_host(session, host):
             timeout=5,
         ) as resp:
             if resp.status in (200, 204):
-                logging.info("Logged out from %s", host.fqdn)
+                logging.info(f"Logged out from {host.fqdn}")
             else:
                 logging.warning(
-                    "Logout failed for %s (HTTP %s)", host.fqdn, resp.status
+                    f"Logout failed for {host.fqdn} (HTTP {resp.status})"
                 )
+
     except Exception as e:
         logging.warning("Error during logout for %s: %s", host.fqdn, e)
+    
     finally:
         host.session.token = None
+        
         host.session.logout_url = None
 
 
 async def run_exporter(config, stop_event, show_deprecated_warnings):
-    """Main loop"""
+    """Run exporter"""
+
     port = config.get("port", 8000)
     default_username = config.get("username")
     default_password = config.get("password")
@@ -604,11 +612,15 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
     interval = config.get("interval", 10)
 
     # Start Prometheus metrics server
+
     start_http_server(port)
+
     logging.info("Prometheus metrics server running on port %s", port)
 
     # create persistent HostConfig objects
+
     host_objs = []
+
     for host_entry in hosts:
         if isinstance(host_entry, dict):
             hc = HostConfig(
@@ -626,24 +638,45 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
                 chassis=default_chassis,
                 group=default_group,
             )
+
         host_objs.append(hc)
 
-    # Connection pooling with aiohttp
-    connector = aiohttp.TCPConnector(limit_per_host=5, limit=50, ttl_dns_cache=300)
+    # Pool connections
+
+    connector = aiohttp.TCPConnector(
+        limit_per_host=5,
+        limit=50,
+        ttl_dns_cache=300,
+    )
+
     async with aiohttp.ClientSession(connector=connector) as session:
         try:
             while not stop_event.is_set():
                 tasks = []
+
                 for hc in host_objs:
-                    tasks.append(get_power_data(session, hc, show_deprecated_warnings))
+                    tasks.append(
+                        get_power_data(
+                            session,
+                            hc,
+                            show_deprecated_warnings,
+                        )
+                    )
+
                     tasks.append(get_system_info(session, hc))
+
                 await asyncio.gather(*tasks)
+
                 await process_request(interval)
         finally:
             # Graceful shutdown: logout from Redfish sessions
+
             logging.info("Exporter stopping, logging out from Redfish sessions...")
+
             await asyncio.gather(
                 *(logout_host(session, h) for h in host_objs if h.session.token)
             )
+
             logging.info("All sessions logged out.")
+
     logging.info("Exporter stopped cleanly.")
