@@ -122,11 +122,11 @@ async def process_request(t):
     await asyncio.sleep(t)
 
 
-async def probe_vendor(session, host: HostConfig) -> str | None:
+async def probe_vendor(session, host: HostConfig, useSSL=False) -> str | None:
     """Probe the vendor of the Redfish host."""
     try:
         async with session.get(
-            f"https://{host.fqdn}/redfish/v1/", ssl=False, timeout=10
+            f"https://{host.fqdn}/redfish/v1/", ssl=useSSL, timeout=10
         ) as resp:
             if resp.status == 200:
                 data = await resp.json()
@@ -141,14 +141,14 @@ async def probe_vendor(session, host: HostConfig) -> str | None:
     return None
 
 
-async def login_hpe(session, host: HostConfig) -> bool:
+async def login_hpe(session, host: HostConfig, useSSL=False) -> bool:
     """Login to HPE Redfish API and set session token."""
     login_url = f"https://{host.fqdn}/redfish/v1/SessionService/Sessions"
     payload = {"UserName": host.username, "Password": host.password}
 
     try:
         async with session.post(
-            login_url, json=payload, ssl=False, timeout=10
+            login_url, json=payload, ssl=useSSL, timeout=10
         ) as login_resp:
             if login_resp.status == 201:
                 host.session.token = login_resp.headers.get("X-Auth-Token")
@@ -167,7 +167,7 @@ async def login_hpe(session, host: HostConfig) -> bool:
     return False
 
 
-async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
+async def fetch_with_retry(session, host: HostConfig, url: str, useSSL=False) -> dict | None:
     """Fetch JSON from Redfish with retry/backoff."""
     if host.should_skip():
         logging.warning(
@@ -178,7 +178,7 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
 
     # Probe vendor if not already known
     if not host.session.vendor:
-        host.session.vendor = await probe_vendor(session, host)
+        host.session.vendor = await probe_vendor(session, host, useSSL)
 
     is_hpe = host.session.vendor and host.session.vendor.strip().upper().startswith(
         "HPE"
@@ -191,14 +191,14 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
             if is_hpe:
                 # Handle HPE session token
                 if not host.session.token:
-                    if not await login_hpe(session, host):
+                    if not await login_hpe(session, host, useSSL):
                         # Retry login next attempt
                         continue
 
                 headers["X-Auth-Token"] = host.session.token
 
                 async with session.get(
-                    url, headers=headers, ssl=False, timeout=10
+                    url, headers=headers, ssl=useSSL, timeout=10
                 ) as resp:
                     if resp.status == 200:
                         host.mark_success()
@@ -219,7 +219,7 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
                 async with session.get(
                     url,
                     auth=aiohttp.BasicAuth(host.username, host.password),
-                    ssl=False,
+                    ssl=useSSL,
                     timeout=10,
                 ) as resp:
                     if resp.status == 200:
@@ -584,7 +584,7 @@ async def get_system_info(session, host: HostConfig):
         )
 
 
-async def logout_host(session, host):
+async def logout_host(session, host, useSSL=False):
     """Clean logout for Redfish with session tokens"""
 
     if not host.session.token or not host.session.logout_url:
@@ -596,7 +596,7 @@ async def logout_host(session, host):
         async with session.delete(
             logout_url,
             headers={"X-Auth-Token": host.session.token},
-            ssl=False,
+            ssl=useSSL,
             timeout=5,
         ) as resp:
             if resp.status in (200, 204):
@@ -625,6 +625,7 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
     default_group = config.get("group", "none")
     hosts = config["hosts"]
     interval = config.get("interval", 10)
+    useSSL = config.get("ssl", False)
 
     # Start Prometheus metrics server
 
@@ -682,14 +683,14 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
 
                 await asyncio.gather(*tasks)
 
-                await process_request(interval)
+                await process_request(interval, useSSL)
         finally:
             # Graceful shutdown: logout from Redfish sessions
 
             logging.info("Exporter stopping, logging out from Redfish sessions...")
 
             await asyncio.gather(
-                *(logout_host(session, h) for h in host_objs if h.session.token)
+                *(logout_host(session, h, useSSL) for h in host_objs if h.session.token)
             )
 
             logging.info("All sessions logged out.")

@@ -35,6 +35,7 @@ options:
   --port PORT          Override port from config file
   --interval INTERVAL  Override interval from config file
   --show-deprecated    Enable deprecated warnings in log
+  --ssl, --no-ssl      Override whether to use SSL for requests
 ```
 
 # Install

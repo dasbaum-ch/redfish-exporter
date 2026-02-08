@@ -13,6 +13,7 @@ async def main():
     
     parser = argparse.ArgumentParser(description="Redfish Prometheus Exporter.")
 
+
     parser.add_argument(
         "--config",
         default="config.yaml",
@@ -33,32 +34,51 @@ async def main():
         action="store_true",
         help="Enable deprecated warnings in log.",
     )
+    parser.add_argument(
+        "--ssl",
+        action=argparse.BooleanOptionalAction,
+        help="Enable SSL",
+        default=False,
+    )
 
     args = parser.parse_args()
+
 
     show_deprecated_warnings = args.show_deprecated
     
     if show_deprecated_warnings:
         logging.warning("Deprecated warnings are enabled.")
 
-    # Load YAML config
+
+    # load YAML config
     with open(args.config, "r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
 
-    # Override port if argument is provided
+    
+    # override arguments
+
     if args.port is not None:
         config["port"] = args.port
+
     if args.interval is not None:
         config["interval"] = args.interval
 
     stop_event = asyncio.Event()
+    
     loop = asyncio.get_running_loop()
 
+    
     # Handle SIGINT (Ctrl+C) and SIGTERM
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop_event.set)
 
-    await run_exporter(config, stop_event, show_deprecated_warnings)
+    
+    await run_exporter(
+        config,
+        stop_event,
+        show_deprecated_warnings,
+        args.ssl,
+    )
 
 
 if __name__ == "__main__":
