@@ -1,0 +1,16 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "pre-commit",
+    "pep621",
+    "dockerfile",
+    "docker-compose"
+  ],
+  "prHourlyLimit": 0,
+  "pre-commit": {
+    "enabled": true
+  }
+}
