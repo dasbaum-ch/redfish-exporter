@@ -527,37 +527,34 @@ async def get_system_info(session, host: HostConfig):
 
         return
 
-
     # get Redfish version
-    
+
     root_data = await fetch_with_retry(
         session,
         host,
         f"https://{host.fqdn}/redfish/v1/",
     )
-    
+
     if not root_data:
         host.mark_failure()
-        
+
         return
 
     redfish_version = root_data.get("RedfishVersion")
-    
-    
+
     # get manufacturer, serial and model
-    
+
     systems_data = await fetch_with_retry(
         session,
         host,
-        f"https://{host.fqdn}/redfish/v1/Systems/",
+        f"https://{host.fqdn}/redfish/v1/Systems",
     )
-    
+
     if not systems_data:
         host.mark_failure()
-        
+
         return
 
-    
     # track each system member with system data
     for system_member in systems_data.get("Members", []):
         system_url = system_member.get("@odata.id")
@@ -602,16 +599,14 @@ async def logout_host(session, host):
             if resp.status in (200, 204):
                 logging.info(f"Logged out from {host.fqdn}")
             else:
-                logging.warning(
-                    f"Logout failed for {host.fqdn} (HTTP {resp.status})"
-                )
+                logging.warning(f"Logout failed for {host.fqdn} (HTTP {resp.status})")
 
     except Exception as e:
         logging.warning("Error during logout for %s: %s", host.fqdn, e)
-    
+
     finally:
         host.session.token = None
-        
+
         host.session.logout_url = None
 
 
