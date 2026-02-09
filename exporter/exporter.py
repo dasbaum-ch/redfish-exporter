@@ -549,7 +549,7 @@ async def get_system_info(session, host: HostConfig):
     systems_data = await fetch_with_retry(
         session,
         host,
-        systems_url=f"https://{host.fqdn}/redfish/v1/Systems/",
+        f"https://{host.fqdn}/redfish/v1/Systems/",
     )
     
     if not systems_data:
