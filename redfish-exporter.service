@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/srv/redfish-exporter
-ExecStart=/srv/redfish-exporter/.venv/bin/python main.py
+ExecStart=/srv/redfish-exporter/.venv/bin/python .
 Restart=on-failure
 User=redfish
 Group=redfish
