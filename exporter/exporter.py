@@ -632,9 +632,17 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
     host_objs = []
 
     for host_entry in hosts:
+        raw_fqdn = host_entry["fqdn"] if isinstance(host_entry, dict) else host_entry
+
+        if not raw_fqdn.startswith(("http://", "https://")):
+            logging.error(
+                "Invalid host '%s': Missing protocol (http:// or https://)", raw_fqdn
+            )
+            raise ValueError(f"Host {raw_fqdn} must start with http:// or https://")
+
         if isinstance(host_entry, dict):
             hc = HostConfig(
-                fqdn=host_entry["fqdn"],
+                fqdn=raw_fqdn.rstrip("/"),
                 username=host_entry.get("username", default_username),
                 password=host_entry.get("password", default_password),
                 chassis=host_entry.get("chassis", default_chassis),
@@ -642,7 +650,7 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
             )
         else:
             hc = HostConfig(
-                fqdn=host_entry,
+                fqdn=raw_fqdn.rstrip("/"),
                 username=default_username,
                 password=default_password,
                 chassis=default_chassis,
