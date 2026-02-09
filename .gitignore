@@ -4,4 +4,6 @@
 .venv
 .envrc
 
+__pycache__
+
 config.y*ml
