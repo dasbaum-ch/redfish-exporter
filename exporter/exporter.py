@@ -53,6 +53,7 @@ class HostConfig:
     fqdn: str
     username: str
     password: str
+    verify_ssl: bool = True
     chassis: list[str] | None = None
     group: str = "none"
     max_retries: int = 3  # 3 retires
@@ -124,9 +125,10 @@ async def process_request(t):
 
 async def probe_vendor(session, host: HostConfig) -> str | None:
     """Probe the vendor of the Redfish host."""
+    ssl_context = None if host.verify_ssl else False
     try:
         async with session.get(
-            f"https://{host.fqdn}/redfish/v1/", ssl=False, timeout=10
+            f"{host.fqdn}/redfish/v1/", ssl=ssl_context, timeout=10
         ) as resp:
             if resp.status == 200:
                 data = await resp.json()
@@ -143,12 +145,13 @@ async def probe_vendor(session, host: HostConfig) -> str | None:
 
 async def login_hpe(session, host: HostConfig) -> bool:
     """Login to HPE Redfish API and set session token."""
-    login_url = f"https://{host.fqdn}/redfish/v1/SessionService/Sessions"
+    ssl_context = None if host.verify_ssl else False
+    login_url = f"{host.fqdn}/redfish/v1/SessionService/Sessions"
     payload = {"UserName": host.username, "Password": host.password}
 
     try:
         async with session.post(
-            login_url, json=payload, ssl=False, timeout=10
+            login_url, json=payload, ssl=ssl_context, timeout=10
         ) as login_resp:
             if login_resp.status == 201:
                 host.session.token = login_resp.headers.get("X-Auth-Token")
@@ -169,6 +172,8 @@ async def login_hpe(session, host: HostConfig) -> bool:
 
 async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
     """Fetch JSON from Redfish with retry/backoff."""
+    ssl_context = None if host.verify_ssl else False
+
     if host.should_skip():
         logging.warning(
             "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
@@ -198,7 +203,7 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
                 headers["X-Auth-Token"] = host.session.token
 
                 async with session.get(
-                    url, headers=headers, ssl=False, timeout=10
+                    url, headers=headers, ssl=ssl_context, timeout=10
                 ) as resp:
                     if resp.status == 200:
                         host.mark_success()
@@ -219,7 +224,7 @@ async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
                 async with session.get(
                     url,
                     auth=aiohttp.BasicAuth(host.username, host.password),
-                    ssl=False,
+                    ssl=ssl_context,
                     timeout=10,
                 ) as resp:
                     if resp.status == 200:
@@ -253,7 +258,7 @@ async def discover_redfish_resources(
     session, host: HostConfig
 ) -> RedfishResource | None:
     """Discover available Redfish resources and return relevant URLs"""
-    root_url = f"https://{host.fqdn}/redfish/v1/"
+    root_url = f"{host.fqdn}/redfish/v1/"
     data = await fetch_with_retry(session, host, root_url)
     if not data:
         return {}
@@ -279,7 +284,7 @@ def get_power_resource_info(
     # Try PowerSubsystem (new Redfish versions)
     power_url = member_data.get("PowerSubsystem", {}).get("@odata.id")
     if power_url:
-        return f"https://{host_fqdn}{power_url}", "PowerSubsystem"
+        return f"{host_fqdn}{power_url}", "PowerSubsystem"
 
     # Try Power for older Redfish versions
     power_url = member_data.get("Power", {}).get("@odata.id")
@@ -290,7 +295,7 @@ def get_power_resource_info(
                 "Consider updating the firmware for full compatibility.",
                 host_fqdn,
             )
-        return f"https://{host_fqdn}{power_url}", "Power"
+        return f"{host_fqdn}{power_url}", "Power"
 
     # Nothing found -> Error
     logging.error("No Power or PowerSubsystem found for host %s", host_fqdn)
@@ -305,12 +310,12 @@ def process_power_supplies_url(
         # Bei PowerSubsystem: PowerSupplies ist ein separates Objekt
         power_supplies_url = power_data.get("PowerSupplies", {}).get("@odata.id")
         if power_supplies_url:
-            return f"https://{host_fqdn}{power_supplies_url}"
+            return f"{host_fqdn}{power_supplies_url}"
 
     elif power_resource_type == "Power":
         # Bei Power: PowerSupplies ist direkt im Power-Objekt enthalten
         if "PowerSupplies" in power_data:
-            return f"https://{host_fqdn}/redfish/v1/Chassis/1/Power"
+            return f"{host_fqdn}/redfish/v1/Chassis/1/Power"
 
     logging.error("No PowerSupplies found in Power resource for host %s", host_fqdn)
     return None
@@ -351,7 +356,7 @@ async def process_power_supply(
             logging.warning("No Metrics found for PowerSupply %s", psu_data.get("Id"))
             return None
 
-        metrics_url = f"https://{host.fqdn}{metrics_url}"
+        metrics_url = f"{host.fqdn}{metrics_url}"
         metrics_data = await fetch_with_retry(session, host, metrics_url)
         if not metrics_data:
             return None
@@ -412,7 +417,7 @@ async def get_power_data(session, host: HostConfig, show_deprecated_warnings):
     host.mark_success()
     UP_GAUGE.labels(host=host.fqdn, group=host.group).set(1)
 
-    chassis_url = f"https://{host.fqdn}{resources.chassis}"
+    chassis_url = f"{host.fqdn}{resources.chassis}"
     chassis_data = await fetch_with_retry(session, host, chassis_url)
     if not chassis_data:
         host.mark_failure()
@@ -433,7 +438,7 @@ async def get_power_data(session, host: HostConfig, show_deprecated_warnings):
             if chassis_member_id not in host.chassis:
                 continue
 
-        member_url = f"https://{host.fqdn}{chassis_member_url}"
+        member_url = f"{host.fqdn}{chassis_member_url}"
         member_data = await fetch_with_retry(session, host, member_url)
         if not member_data:
             continue
@@ -458,7 +463,7 @@ async def get_power_data(session, host: HostConfig, show_deprecated_warnings):
                 logging.warning("No PowerSupplies found for %s", host.fqdn)
                 continue
 
-            power_supplies_url = f"https://{host.fqdn}{power_supplies_url}"
+            power_supplies_url = f"{host.fqdn}{power_supplies_url}"
             power_supplies_data = await fetch_with_retry(
                 session, host, power_supplies_url
             )
@@ -471,7 +476,7 @@ async def get_power_data(session, host: HostConfig, show_deprecated_warnings):
                 if not psu_url:
                     continue
 
-                psu_url = f"https://{host.fqdn}{psu_url}"
+                psu_url = f"{host.fqdn}{psu_url}"
                 psu_data = await fetch_with_retry(session, host, psu_url)
                 if not psu_data:
                     continue
@@ -532,7 +537,7 @@ async def get_system_info(session, host: HostConfig):
     root_data = await fetch_with_retry(
         session,
         host,
-        f"https://{host.fqdn}/redfish/v1/",
+        f"{host.fqdn}/redfish/v1/",
     )
 
     if not root_data:
@@ -547,7 +552,7 @@ async def get_system_info(session, host: HostConfig):
     systems_data = await fetch_with_retry(
         session,
         host,
-        f"https://{host.fqdn}/redfish/v1/Systems",
+        f"{host.fqdn}/redfish/v1/Systems",
     )
 
     if not systems_data:
@@ -562,9 +567,7 @@ async def get_system_info(session, host: HostConfig):
         if not system_url:
             continue
 
-        system_data = await fetch_with_retry(
-            session, host, f"https://{host.fqdn}{system_url}"
-        )
+        system_data = await fetch_with_retry(session, host, f"{host.fqdn}{system_url}")
 
         if not system_data:
             continue
@@ -583,6 +586,7 @@ async def get_system_info(session, host: HostConfig):
 
 async def logout_host(session, host):
     """Clean logout for Redfish with session tokens"""
+    ssl_context = None if host.verify_ssl else False
 
     if not host.session.token or not host.session.logout_url:
         return
@@ -593,7 +597,7 @@ async def logout_host(session, host):
         async with session.delete(
             logout_url,
             headers={"X-Auth-Token": host.session.token},
-            ssl=False,
+            ssl=ssl_context,
             timeout=5,
         ) as resp:
             if resp.status in (200, 204):
@@ -616,6 +620,7 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
     port = config.get("port", 8000)
     default_username = config.get("username")
     default_password = config.get("password")
+    default_verify_ssl = config.get("verify_ssl", True)
     default_chassis = config.get("chassis", "1")
     default_group = config.get("group", "none")
     hosts = config["hosts"]
@@ -645,6 +650,7 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
                 fqdn=raw_fqdn.rstrip("/"),
                 username=host_entry.get("username", default_username),
                 password=host_entry.get("password", default_password),
+                verify_ssl=host_entry.get("verify_ssl", default_verify_ssl),
                 chassis=host_entry.get("chassis", default_chassis),
                 group=host_entry.get("group", default_group),
             )
@@ -653,6 +659,7 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
                 fqdn=raw_fqdn.rstrip("/"),
                 username=default_username,
                 password=default_password,
+                verify_ssl=default_verify_ssl,
                 chassis=default_chassis,
                 group=default_group,
             )
