@@ -22,19 +22,19 @@ pre-commit:
 
 # Run the exporter
 run:
-    python redfish-exporter --config config.yaml
+    python . --config config.yaml
 
 # Run the exporter with custom config
 run-custom config="config.custom.yaml":
-    python redfish-exporter --config {{config}}
+    python . --config {{config}}
 
 # Run the exporter with custom port
 run-port port="9000":
-    python redfish-exporter --config config.yaml --port {{port}}
+    python . --config config.yaml --port {{port}}
 
 # Run the exporter with custom interval
 run-interval interval="10":
-    python redfish-exporter --config config.yaml --interval {{interval}}
+    python . --config config.yaml --interval {{interval}}
 
 # Build Docker image
 docker-build:
