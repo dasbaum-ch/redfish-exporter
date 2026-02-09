@@ -33,4 +33,4 @@ ENTRYPOINT []
 
 EXPOSE 8000
 
-CMD [ "python", "redfish-exporter" ]
+CMD [ "python", "." ]
