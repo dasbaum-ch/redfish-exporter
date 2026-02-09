@@ -1,0 +1,9 @@
+---
+interval: 10
+port: 8000
+username: user
+password: secrets
+chassis: ["Chassis-1"] # Strings, not integers!
+group: production
+hosts:
+  - fqdn: localhost:5000

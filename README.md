@@ -167,3 +167,8 @@ Here are some servers that I have successfully tested:
 | Supermicro | AS-5126GS-TNRT2      | 1.21.0          |
 |            | AS-1124US-TNRP       | 1.8.0           |
 | HPE        | ProLiant DL380 Gen10 | 1.6.0           |
+
+# Testing with Redfish Mockup
+To run tests against a local Redfish environment, use [Redfish Interface Emulator](https://github.com/DMTF/Redfish-Interface-Emulator). At `tests/mock_server` is a simple `compose.yaml` to run a local Redfish server.
+
+Run `python . --config config-localdev.yaml` to use your local Redfish server.
