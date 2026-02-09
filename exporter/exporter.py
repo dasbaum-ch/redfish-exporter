@@ -67,6 +67,18 @@ class HostConfig:
         """Check if host is still in cool-down window"""
         return time.monotonic() < self.next_retry_time
 
+    def check_and_log_skip(self) -> bool:
+        """Checks if host should be skipped and logs the remaining time if so."""
+        if self.should_skip():
+            remaining = max(0, self.next_retry_time - time.monotonic())
+            logging.warning(
+                "Skipping %s (in cool-down for another %.0f seconds)",
+                self.fqdn,
+                remaining,
+            )
+            return True
+        return False
+
     def mark_failure(self):
         """Increase failure counter and maybe trigger cool-down"""
         self.failures += 1
@@ -173,6 +185,9 @@ async def login_hpe(session, host: HostConfig) -> bool:
 async def fetch_with_retry(session, host: HostConfig, url: str) -> dict | None:
     """Fetch JSON from Redfish with retry/backoff."""
     ssl_context = None if host.verify_ssl else False
+    if host.check_and_log_skip():
+        UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
+        return None
 
     if host.should_skip():
         logging.warning(
@@ -396,10 +411,7 @@ def normalize_url(url: str) -> str:
 
 async def get_power_data(session, host: HostConfig, show_deprecated_warnings):
     """Query Redfish for power data and update Prometheus metrics"""
-    if host.should_skip():
-        logging.warning(
-            "Skipping %s (in cool-down until %.1f)", host.fqdn, host.next_retry_time
-        )
+    if host.check_and_log_skip():
         UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return
 
@@ -523,14 +535,9 @@ def update_prometheus_metrics(host: HostConfig, metrics: PowerMetrics):
 async def get_system_info(session, host: HostConfig):
     """Query Redfish for system data and update Prometheus metrics"""
 
-    if host.should_skip():
-        logging.warning(
-            "Skipping %s (in cool-down until %.1f)",
-            host.fqdn,
-            host.next_retry_time,
-        )
-
-        return
+    if host.check_and_log_skip():
+        UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
+        return None
 
     # get Redfish version
 
