@@ -3,7 +3,9 @@ interval: 10
 port: 8000
 username: user
 password: secrets
+verify_ssl: true
 chassis: ["Chassis-1"] # Strings, not integers!
 group: production
 hosts:
-  - fqdn: localhost:5000
+  - fqdn: http://localhost:5000
+    verify_ssl: false

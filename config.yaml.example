@@ -3,6 +3,7 @@ interval: 10
 port: 8000
 username: user
 password: secrets
+verify_ssl: true
 chassis: ["1"] # Strings, not integers!
 group: production
 hosts:
