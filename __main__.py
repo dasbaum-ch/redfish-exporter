@@ -10,7 +10,7 @@ from exporter import run_exporter
 
 async def main():
     """Assemble configuration and run exporter"""
-    
+
     parser = argparse.ArgumentParser(description="Redfish Prometheus Exporter.")
 
     parser.add_argument(
@@ -37,7 +37,7 @@ async def main():
     args = parser.parse_args()
 
     show_deprecated_warnings = args.show_deprecated
-    
+
     if show_deprecated_warnings:
         logging.warning("Deprecated warnings are enabled.")
 
@@ -63,4 +63,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
