@@ -347,6 +347,7 @@ async def get_system_info(session, host: RedfishHost):
 
 
 async def logout_host(session, host: RedfishHost):
+    # Logout if session token and logout url was set
     if not host.session.token or not host.session.logout_url:
         return
     ssl_context = None if host.cfg.verify_ssl else False
@@ -359,9 +360,14 @@ async def logout_host(session, host: RedfishHost):
         ) as resp:
             if resp.status in (200, 204):
                 logging.info("Logged out from %s", host.fqdn)
+            else:
+                logging.warning(
+                    "Logout from %s failed with status %s", host.fqdn, resp.status
+                )
     except Exception as e:
         logging.warning("Logout error for %s: %s", host.fqdn, e)
     finally:
+        # Delete session token
         host.session.token = None
 
 
@@ -408,4 +414,16 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
                 await asyncio.gather(*tasks)
                 await process_request(interval)
         finally:
-            await asyncio.gather(*(logout_host(session, h) for h in host_objs))
+            logging.info(
+                "Exporter stopping, logging out from all active Redfish sessions..."
+            )
+            logout_tasks = [
+                logout_host(session, h)
+                for h in host_objs
+                if h.session.token is not None
+            ]
+            if logout_tasks:
+                await asyncio.gather(*logout_tasks)
+                logging.info(f"Successfully processed {len(logout_tasks)} logouts.")
+            else:
+                logging.info("No active sessions to log out.")
