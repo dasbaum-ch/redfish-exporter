@@ -40,9 +40,11 @@ class HostHealth:
 
     @property
     def should_skip(self) -> bool:
+        """Check if host is still in cool-down window"""
         return time.monotonic() < self.next_retry_time
 
     def check_and_log_skip(self, fqdn: str) -> bool:
+        """Checks if host should be skipped and logs the remaining time if so."""
         if self.should_skip:
             remaining = max(0, self.next_retry_time - time.monotonic())
             logging.warning(
@@ -52,12 +54,14 @@ class HostHealth:
         return False
 
     def mark_failure(self):
+        """Increase failure counter and maybe trigger cool-down"""
         self.failures += 1
         if self.failures >= self._config.max_retries:
             self.next_retry_time = time.monotonic() + self._config.cool_down
             self.failures = 0
 
     def mark_success(self):
+        """Reset failure counter after a successful request"""
         self.failures = 0
         self.next_retry_time = 0.0
 
@@ -138,10 +142,12 @@ SYSTEM_INFO = Info("redfish_system", "System information", ["host", "group"])
 
 @REQUEST_TIME.time()
 async def process_request(t):
+    """Simulate request time"""
     await asyncio.sleep(t)
 
 
 async def probe_vendor(session, host: RedfishHost) -> str | None:
+    """Probe the vendor of the Redfish host."""
     ssl_context = None if host.cfg.verify_ssl else False
     try:
         async with session.get(
@@ -156,6 +162,7 @@ async def probe_vendor(session, host: RedfishHost) -> str | None:
 
 
 async def login_hpe(session, host: RedfishHost) -> bool:
+    """Login to HPE Redfish API and set session token."""
     ssl_context = None if host.cfg.verify_ssl else False
     login_url = f"{host.fqdn}/redfish/v1/SessionService/Sessions"
     payload = {"UserName": host.cfg.username, "Password": host.cfg.password}
@@ -173,6 +180,7 @@ async def login_hpe(session, host: RedfishHost) -> bool:
 
 
 async def fetch_with_retry(session, host: RedfishHost, url: str) -> dict | None:
+    """Fetch JSON from Redfish with retry/backoff."""
     if host.health.check_and_log_skip(host.fqdn):
         UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return None
@@ -347,7 +355,7 @@ async def get_system_info(session, host: RedfishHost):
 
 
 async def logout_host(session, host: RedfishHost):
-    # Logout if session token and logout url was set
+    """Clean logout for Redfish with session tokens"""
     if not host.session.token or not host.session.logout_url:
         return
     ssl_context = None if host.cfg.verify_ssl else False
