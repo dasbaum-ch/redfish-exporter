@@ -12,5 +12,8 @@
   "prHourlyLimit": 0,
   "pre-commit": {
     "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true
   }
 }
