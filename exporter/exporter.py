@@ -93,16 +93,6 @@ class RedfishHost:
 
 
 @dataclass
-class RedfishResource:
-    """Container for Redfish resource URLs."""
-
-    chassis: str | None = None
-    systems: str | None = None
-    power: str | None = None
-    session_service: str | None = None
-
-
-@dataclass
 class PowerMetrics:
     """Container for Power metrics."""
 
@@ -379,7 +369,7 @@ async def run_exporter(config, stop_event, show_deprecated_warnings):
     port = config.get("port", 8000)
     interval = config.get("interval", 10)
     start_http_server(port)
-    logging.info("Metrics server on port %s", port)
+    logging.info("Metrics server on http://localhost:%s", port)
 
     host_objs = []
     for entry in config["hosts"]:
