@@ -3,7 +3,6 @@ import logging
 from dataclasses import dataclass, field
 import asyncio
 import aiohttp
-import urllib3
 from prometheus_client import (
     Gauge,
     start_http_server,
@@ -92,8 +91,6 @@ class HostConfig:
         self.next_retry_time = 0.0
 
 
-# Disable certificate warnings
-urllib3.disable_warnings()
 # set log config
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
