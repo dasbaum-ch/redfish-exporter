@@ -27,13 +27,16 @@ async def fetch_with_retry(
         host.session.vendor = await probe_vendor(session, host)
 
     auth = None
-    headers = {}
+    headers: Dict[str, str] = {}
     if host.session.is_hpe:
         if not host.session.token and not await login_hpe(session, host):
             return None
-        headers["X-Auth-Token"] = host.session.token
     else:
         auth = aiohttp.BasicAuth(host.cfg.username, host.cfg.password)
+
+    token = host.session.token
+    if token:
+        headers["X-Auth-Token"] = token
 
     kwargs = get_aiohttp_request_kwargs(
         verify_ssl=host.cfg.verify_ssl,
@@ -120,25 +123,33 @@ async def get_power_data(
     """
     start = time.monotonic()
     root = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
-    if not root:
+    if root is None:
         return
 
     UP_GAUGE.labels(host=host.fqdn, group=host.group).set(1)
-    chassis_url = f"{host.fqdn}{root.get('Chassis', {}).get('@odata.id')}"
+    # Safe access, had problems with mypy :S
+    chassis_id_path = root.get("Chassis", {}).get("@odata.id")
+    if not chassis_id_path:
+        return
+
+    chassis_url = f"{host.fqdn}{chassis_id_path}"
     chassis_collection = await fetch_with_retry(session, host, chassis_url)
 
-    if not chassis_collection:
+    if chassis_collection is None:
         return
 
     for member in chassis_collection.get("Members", []):
         m_url = normalize_url(member.get("@odata.id", ""))
+        if not m_url:
+            continue
+
         m_id = m_url.split("/")[-1]
 
         if host.cfg.chassis and m_id not in host.cfg.chassis:
             continue
 
         m_data = await fetch_with_retry(session, host, f"{host.fqdn}{m_url}")
-        if not m_data:
+        if m_data is None:
             continue
 
         p_url = m_data.get("PowerSubsystem", {}).get("@odata.id")
@@ -151,8 +162,9 @@ async def get_power_data(
 
         if not p_url:
             continue
+
         p_data = await fetch_with_retry(session, host, f"{host.fqdn}{p_url}")
-        if not p_data:
+        if p_data is None:
             continue
 
         if p_type == "PowerSubsystem":
@@ -160,11 +172,14 @@ async def get_power_data(
             if not psus_url:
                 continue
             psus_coll = await fetch_with_retry(session, host, f"{host.fqdn}{psus_url}")
+            if psus_coll is None:
+                continue
+
             for psu_mem in psus_coll.get("Members", []):
                 psu_d = await fetch_with_retry(
                     session, host, f"{host.fqdn}{psu_mem.get('@odata.id')}"
                 )
-                if psu_d:
+                if psu_d is not None:
                     metrics = await process_power_supply(session, host, psu_d, p_type)
                     safe_update_metrics(host, metrics)
         else:
@@ -184,8 +199,9 @@ async def get_system_info(session: aiohttp.ClientSession, host: RedfishHost) -> 
         host: RedfishHost instance to query.
     """
     root = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
-    if not root:
+    if root is None:
         return
+    rf_version = str(root.get("RedfishVersion", "unknown"))
 
     systems = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/Systems")
     if not systems:
@@ -201,6 +217,6 @@ async def get_system_info(session: aiohttp.ClientSession, host: RedfishHost) -> 
                     "manufacturer": s_data.get("Manufacturer") or NO_DATA_ENTRY,
                     "model": s_data.get("Model") or NO_DATA_ENTRY,
                     "serial_number": s_data.get("SerialNumber") or NO_DATA_ENTRY,
-                    "redfish_version": root.get("RedfishVersion", "unknown"),
+                    "redfish_version": rf_version,
                 }
             )
