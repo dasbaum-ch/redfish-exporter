@@ -1,9 +1,9 @@
 # api.py
 import time
-import asyncio
-import aiohttp
 import logging
 from typing import Optional, Dict, Any
+import asyncio
+import aiohttp
 from exporter.config import PowerMetrics, NO_DATA_ENTRY
 from exporter.redfish import RedfishHost
 from exporter.metrics import (

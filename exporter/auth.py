@@ -1,7 +1,7 @@
 # exporter/auth.py
 import logging
-import aiohttp
 from typing import Optional
+import aiohttp
 from exporter.redfish import RedfishHost
 
 

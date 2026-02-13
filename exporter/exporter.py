@@ -1,8 +1,8 @@
 # main.py
 import logging
+from typing import Dict, Any
 import asyncio
 import aiohttp
-from typing import Dict, Any
 from prometheus_client import start_http_server
 from exporter.config import HostConfig
 from exporter.redfish import RedfishHost
