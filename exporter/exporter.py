@@ -9,14 +9,14 @@ from exporter.redfish import RedfishHost
 from exporter.api import get_power_data, get_system_info
 from exporter.auth import logout_host
 
+
 async def process_request(t: float) -> None:
     """Simulate request time"""
     await asyncio.sleep(t)
 
+
 async def run_exporter(
-    config: Dict[str, Any],
-    stop_event: asyncio.Event,
-    show_deprecated_warnings: bool
+    config: Dict[str, Any], stop_event: asyncio.Event, show_deprecated_warnings: bool
 ) -> None:
     """
     Main entry point for the Redfish exporter.

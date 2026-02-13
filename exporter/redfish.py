@@ -2,6 +2,7 @@
 from exporter.config import HostConfig, RedfishSessionState
 from exporter.health import HostHealth
 
+
 class RedfishHost:
     """
     Main class for managing a Redfish host connection and session state.
@@ -11,6 +12,7 @@ class RedfishHost:
         health: Host health manager.
         session: Redfish session state.
     """
+
     def __init__(self, config: HostConfig) -> None:
         """
         Initialize a RedfishHost with the given configuration.

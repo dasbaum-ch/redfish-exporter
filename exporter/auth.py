@@ -4,7 +4,10 @@ import aiohttp
 from typing import Optional
 from exporter.redfish import RedfishHost
 
-async def probe_vendor(session: aiohttp.ClientSession, host: RedfishHost) -> Optional[str]:
+
+async def probe_vendor(
+    session: aiohttp.ClientSession, host: RedfishHost
+) -> Optional[str]:
     """
     Probe the vendor of a Redfish host by querying the root Redfish API endpoint.
 
@@ -26,6 +29,7 @@ async def probe_vendor(session: aiohttp.ClientSession, host: RedfishHost) -> Opt
     except Exception as e:
         logging.warning("Vendor probe failed for %s: %s", host.fqdn, e)
     return None
+
 
 async def login_hpe(session: aiohttp.ClientSession, host: RedfishHost) -> bool:
     """
@@ -52,6 +56,7 @@ async def login_hpe(session: aiohttp.ClientSession, host: RedfishHost) -> bool:
     except Exception as e:
         logging.warning("Login failed for %s: %s", host.fqdn, e)
     return False
+
 
 async def logout_host(session: aiohttp.ClientSession, host: RedfishHost) -> None:
     """

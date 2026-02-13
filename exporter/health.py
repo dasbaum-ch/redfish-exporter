@@ -3,6 +3,7 @@ import time
 import logging
 from exporter.config import HostConfig
 
+
 class HostHealth:
     """
     Manage the health state of a Redfish host, including failure tracking and cool-down logic.

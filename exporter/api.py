@@ -6,13 +6,17 @@ import logging
 from typing import Optional, Dict, Any
 from exporter.config import PowerMetrics, NO_DATA_ENTRY
 from exporter.redfish import RedfishHost
-from exporter.metrics import update_prometheus_metrics, REQUEST_LATENCY, UP_GAUGE, SYSTEM_INFO
+from exporter.metrics import (
+    update_prometheus_metrics,
+    REQUEST_LATENCY,
+    UP_GAUGE,
+    SYSTEM_INFO,
+)
 from exporter.auth import probe_vendor, login_hpe
 
+
 async def fetch_with_retry(
-    session: aiohttp.ClientSession,
-    host: RedfishHost,
-    url: str
+    session: aiohttp.ClientSession, host: RedfishHost, url: str
 ) -> Optional[Dict[str, Any]]:
     """Fetch JSON data from a Redfish API endpoint with retry and backoff logic.
 
@@ -69,6 +73,7 @@ async def fetch_with_retry(
             host.health.mark_failure()
     return None
 
+
 def normalize_url(url: str) -> str:
     """Normalize a URL by removing trailing slashes.
 
@@ -80,11 +85,12 @@ def normalize_url(url: str) -> str:
     """
     return url[:-1] if url.endswith("/") else url
 
+
 async def process_power_supply(
     session: aiohttp.ClientSession,
     host: RedfishHost,
     psu_data: Dict[str, Any],
-    resource_type: str
+    resource_type: str,
 ) -> Optional[PowerMetrics]:
     """
     Process power supply data and extract metrics like voltage, watts, and amps.
@@ -119,10 +125,9 @@ async def process_power_supply(
             metrics.amps = round(metrics.watts / metrics.voltage, 2)
     return metrics
 
+
 async def get_power_data(
-    session: aiohttp.ClientSession,
-    host: RedfishHost,
-    show_deprecated_warnings: bool
+    session: aiohttp.ClientSession, host: RedfishHost, show_deprecated_warnings: bool
 ) -> None:
     """
     Fetch and process power data from a Redfish host.
@@ -190,6 +195,7 @@ async def get_power_data(
                 update_prometheus_metrics(host, metrics)
 
     REQUEST_LATENCY.labels(host=host.fqdn).observe(time.monotonic() - start)
+
 
 async def get_system_info(session: aiohttp.ClientSession, host: RedfishHost) -> None:
     """

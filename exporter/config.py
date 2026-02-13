@@ -3,6 +3,7 @@ from typing import Optional, List
 
 NO_DATA_ENTRY: str = "<no data>"
 
+
 @dataclass(frozen=True)
 class HostConfig:
     """Static configuration for a Redfish host.
@@ -18,6 +19,7 @@ class HostConfig:
         backoff: Backoff factor for retries. Defaults to 2.
         cool_down: Cool-down period in seconds after max retries. Defaults to 120.
     """
+
     fqdn: str
     username: str
     password: str
@@ -28,6 +30,7 @@ class HostConfig:
     backoff: int = 2
     cool_down: int = 120
 
+
 @dataclass
 class RedfishSessionState:
     """State container for Redfish session management.
@@ -37,6 +40,7 @@ class RedfishSessionState:
         logout_url: URL to log out from the session.
         vendor: Vendor name of the Redfish host.
     """
+
     token: Optional[str] = None
     logout_url: Optional[str] = None
     vendor: Optional[str] = None
@@ -50,6 +54,7 @@ class RedfishSessionState:
         """
         return bool(self.vendor and self.vendor.strip().upper().startswith("HPE"))
 
+
 @dataclass
 class PowerMetrics:
     """Container for power metrics extracted from a Redfish host.
@@ -60,6 +65,7 @@ class PowerMetrics:
         amps: Current draw in amps.
         serial: Serial number of the power supply.
     """
+
     voltage: Optional[float] = None
     watts: Optional[float] = None
     amps: Optional[float] = None
