@@ -42,12 +42,13 @@ async def logout_host(session: aiohttp.ClientSession, host: RedfishHost) -> None
     if not host.session.token or not host.session.logout_url:
         return
     kwargs = get_aiohttp_request_kwargs(
-        verify_ssl=host.cfg.verify_ssl, timeout_seconds=10
+        verify_ssl=host.cfg.verify_ssl, 
+        timeout_seconds=10,
+        headers={"X-Auth-Token": host.session.token}
     )
     try:
         async with session.delete(
             host.session.logout_url,
-            headers={"X-Auth-Token": host.session.token},
             **kwargs,
         ) as resp:
             if resp.status in (200, 204):
