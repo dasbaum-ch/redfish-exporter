@@ -14,7 +14,6 @@ from exporter.config import HostConfig
 
 
 def make_host(vendor="Dell", **kwargs):
-    """Create a RedfishHost with sensible test defaults."""
     defaults = {
         "fqdn": "http://localhost:5000",
         "username": "user",
@@ -58,7 +57,6 @@ class TestNormalizeUrl:
 
 
 def create_mock_response(data, status=200, headers=None):
-    """Create a mock aiohttp response."""
     mock_response = MagicMock()
     mock_response.status = status
     mock_response.json = AsyncMock(return_value=data)
@@ -70,7 +68,6 @@ def create_mock_response(data, status=200, headers=None):
 
 
 def create_mock_session(response_data, status=200):
-    """Create a mock aiohttp session with proper async context manager."""
     session = MagicMock()
     mock_response = create_mock_response(response_data, status)
 
@@ -149,40 +146,6 @@ class TestFetchWithRetry:
         result = await fetch_with_retry(session, host, "http://localhost:5000/redfish/v1")
         assert result is None
         assert session.get.call_count == 2
-
-    # @pytest.mark.asyncio
-    # async def test_fetch_success_after_retry(self):
-    #     # First call fails, second succeeds
-    #     session = MagicMock()
-    #     mock_response_fail = create_mock_response({}, status=500)
-    #     mock_response_success = create_mock_response({"data": "success"}, status=200)
-
-    #     mock_cm_fail = MagicMock()
-    #     mock_cm_fail.__aenter__ = AsyncMock(return_value=mock_response_fail)
-    #     mock_cm_fail.__aexit__ = AsyncMock(return_value=None)
-
-    #     mock_cm_success = MagicMock()
-    #     mock_cm_success.__aenter__ = AsyncMock(return_value=mock_response_success)
-    #     mock_cm_success.__aexit__ = AsyncMock(return_value=None)
-
-    #     session.get.side_effect = [mock_cm_fail, mock_cm_success]
-
-    #     host = RedfishHost(
-    #         HostConfig(
-    #             fqdn="http://localhost:5000",
-    #             username="user",
-    #             password="pass",
-    #             max_retries=2,
-    #             backoff=0,
-    #         )
-    #     )
-    #     host.session.vendor = "Dell"
-
-    #     result = await fetch_with_retry(
-    #         session, host, "http://localhost:5000/redfish/v1"
-    #     )
-    #     assert result == {"data": "success"}
-    #     assert session.get.call_count == 2
 
 
 class TestProcessPowerSupply:
@@ -306,26 +269,3 @@ class TestGetPowerData:
         except TypeError:
             pytest.skip("Mock setup issue - test would pass with proper implementation")
 
-    # @pytest.mark.asyncio
-    # async def test_get_power_data_chassis_member_no_id(self):
-    #     session = create_mock_session({
-    #         "Chassis": {"@odata.id": "/redfish/v1/Chassis"}
-    #     })
-    #     chassis_session = create_mock_session({
-    #         "Members": [{"@odata.id": ""}]
-    #     })
-    #     # Patch the session to return different responses for different calls
-    #     original_get = session.get
-    #     session.get = AsyncMock(side_effect=[original_get.return_value, chassis_session.get.return_value])
-
-    #     host = RedfishHost(
-    #         HostConfig(
-    #             fqdn="http://localhost:5000",
-    #             username="user",
-    #             password="pass",
-    #         )
-    #     )
-    #     host.session.vendor = "Dell"
-
-    #     await get_power_data(session, host, False)
-    #     # Should not raise exception
