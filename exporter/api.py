@@ -7,27 +7,18 @@ import aiohttp
 from exporter.config import PowerMetrics, NO_DATA_ENTRY
 from exporter.redfish import RedfishHost
 from exporter.metrics import (
-    update_prometheus_metrics,
     REQUEST_LATENCY,
     UP_GAUGE,
     SYSTEM_INFO,
 )
 from exporter.auth import probe_vendor, login_hpe
+from exporter.utils import get_aiohttp_request_kwargs, safe_get, safe_update_metrics
 
 
 async def fetch_with_retry(
     session: aiohttp.ClientSession, host: RedfishHost, url: str
-) -> Optional[Dict[str, Any]]:
-    """Fetch JSON data from a Redfish API endpoint with retry and backoff logic.
-
-    Args:
-        session: Active aiohttp client session.
-        host: RedfishHost instance for connection details.
-        url: Full URL to fetch data from.
-
-    Returns:
-        Optional[Dict[str, Any]]: Parsed JSON response as a dictionary, or None if all retries fail.
-    """
+) -> Optional[dict]:
+    """Fetch JSON from Redfish with retry/backoff."""
     if host.health.check_and_log_skip(host.fqdn):
         UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return None
@@ -35,23 +26,24 @@ async def fetch_with_retry(
     if not host.session.vendor:
         host.session.vendor = await probe_vendor(session, host)
 
-    ssl_context = None if host.cfg.verify_ssl else False
+    auth = None
+    headers = {}
+    if host.session.is_hpe:
+        if not host.session.token and not await login_hpe(session, host):
+            return None
+        headers["X-Auth-Token"] = host.session.token
+    else:
+        auth = aiohttp.BasicAuth(host.cfg.username, host.cfg.password)
+
+    kwargs = get_aiohttp_request_kwargs(
+        verify_ssl=host.cfg.verify_ssl,
+        headers=headers,
+        auth=auth,
+    )
 
     for attempt in range(1, host.cfg.max_retries + 1):
         try:
-            headers = {}
-            auth = None
-
-            if host.session.is_hpe:
-                if not host.session.token and not await login_hpe(session, host):
-                    continue
-                headers["X-Auth-Token"] = host.session.token
-            else:
-                auth = aiohttp.BasicAuth(host.cfg.username, host.cfg.password)
-
-            async with session.get(
-                url, headers=headers, auth=auth, ssl=ssl_context, timeout=10
-            ) as resp:
+            async with session.get(url, **kwargs) as resp:
                 if resp.status == 200:
                     host.health.mark_success()
                     return await resp.json()
@@ -92,18 +84,7 @@ async def process_power_supply(
     psu_data: Dict[str, Any],
     resource_type: str,
 ) -> Optional[PowerMetrics]:
-    """
-    Process power supply data and extract metrics like voltage, watts, and amps.
-
-    Args:
-        session: Active aiohttp client session.
-        host: RedfishHost instance.
-        psu_data: Raw power supply data as a dictionary.
-        resource_type: Type of power resource (e.g., "PowerSubsystem").
-
-    Returns:
-        PowerMetrics object with extracted values, or None if processing fails.
-    """
+    """Process power supply data."""
     serial = psu_data.get("SerialNumber")
     metrics = PowerMetrics(serial=serial)
 
@@ -112,9 +93,9 @@ async def process_power_supply(
         if metrics_url:
             data = await fetch_with_retry(session, host, f"{host.fqdn}{metrics_url}")
             if data:
-                metrics.voltage = data.get("InputVoltage", {}).get("Reading")
-                metrics.watts = data.get("InputPowerWatts", {}).get("Reading")
-                metrics.amps = data.get("InputCurrentAmps", {}).get("Reading")
+                metrics.voltage = safe_get(data, "InputVoltage", "Reading")
+                metrics.watts = safe_get(data, "InputPowerWatts", "Reading")
+                metrics.amps = safe_get(data, "InputCurrentAmps", "Reading")
     else:
         metrics.voltage = psu_data.get("LineInputVoltage")
         metrics.watts = psu_data.get("PowerInputWatts") or psu_data.get(
@@ -175,24 +156,21 @@ async def get_power_data(
             continue
 
         if p_type == "PowerSubsystem":
-            psus_url = p_data.get("PowerSupplies", {}).get("@odata.id")
-            if psus_url:
-                psus_coll = await fetch_with_retry(
-                    session, host, f"{host.fqdn}{psus_url}"
+            psus_url = safe_get(p_data, "PowerSupplies", "@odata.id")
+            if not psus_url:
+                continue
+            psus_coll = await fetch_with_retry(session, host, f"{host.fqdn}{psus_url}")
+            for psu_mem in psus_coll.get("Members", []):
+                psu_d = await fetch_with_retry(
+                    session, host, f"{host.fqdn}{psu_mem.get('@odata.id')}"
                 )
-                for psu_mem in psus_coll.get("Members", []):
-                    psu_d = await fetch_with_retry(
-                        session, host, f"{host.fqdn}{psu_mem.get('@odata.id')}"
-                    )
-                    if psu_d:
-                        metrics = await process_power_supply(
-                            session, host, psu_d, p_type
-                        )
-                        update_prometheus_metrics(host, metrics)
+                if psu_d:
+                    metrics = await process_power_supply(session, host, psu_d, p_type)
+                    safe_update_metrics(host, metrics)
         else:
             for psu in p_data.get("PowerSupplies", []):
                 metrics = await process_power_supply(session, host, psu, p_type)
-                update_prometheus_metrics(host, metrics)
+                safe_update_metrics(host, metrics)
 
     REQUEST_LATENCY.labels(host=host.fqdn).observe(time.monotonic() - start)
 

@@ -37,6 +37,15 @@ options:
   --show-deprecated    Enable deprecated warnings in log
 ```
 
+# Development
+
+## Setup your venv
+Install the dependencies using `uv`:
+
+```bash
+uv sync --group dev
+```
+
 # Install
 
 ## Requirements

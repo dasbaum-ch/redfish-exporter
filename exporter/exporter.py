@@ -8,10 +8,11 @@ from exporter.config import HostConfig
 from exporter.redfish import RedfishHost
 from exporter.api import get_power_data, get_system_info
 from exporter.auth import logout_host
+from exporter.utils import validate_host_config
 
 
 async def process_request(t: float) -> None:
-    """Simulate request time"""
+    """Simulate request time."""
     await asyncio.sleep(t)
 
 
@@ -19,7 +20,7 @@ async def run_exporter(
     config: Dict[str, Any], stop_event: asyncio.Event, show_deprecated_warnings: bool
 ) -> None:
     """
-    Main entry point for the Redfish exporter.
+    Entry point for the Redfish exporter.
 
     Collects metrics from Redfish hosts and exposes them via Prometheus.
 
@@ -34,29 +35,16 @@ async def run_exporter(
     logging.info("Metrics server on http://localhost:%s", port)
 
     host_objs = []
-    for entry in config["hosts"]:
-        is_dict = isinstance(entry, dict)
-        raw_fqdn = entry["fqdn"] if is_dict else entry
 
-        cfg = HostConfig(
-            fqdn=raw_fqdn.rstrip("/"),
-            username=entry.get("username", config.get("username"))
-            if is_dict
-            else config.get("username"),
-            password=entry.get("password", config.get("password"))
-            if is_dict
-            else config.get("password"),
-            verify_ssl=entry.get("verify_ssl", config.get("verify_ssl", True))
-            if is_dict
-            else config.get("verify_ssl", True),
-            chassis=entry.get("chassis", config.get("chassis", ["1"]))
-            if is_dict
-            else config.get("chassis", ["1"]),
-            group=entry.get("group", config.get("group", "none"))
-            if is_dict
-            else config.get("group", "none"),
-        )
-        host_objs.append(RedfishHost(cfg))
+    for entry in config["hosts"]:
+        try:
+            validated_entry = validate_host_config(entry, config)
+            cfg = HostConfig(**validated_entry)
+            host_objs.append(RedfishHost(cfg))
+
+        except ValueError as e:
+            logging.error("Invalid host configuration: %s. Skipping host.", e)
+            continue
 
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(limit=50)
