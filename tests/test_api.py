@@ -13,22 +13,16 @@ from exporter.config import HostConfig
 
 
 class TestNormalizeUrl:
-    """Tests for normalize_url function."""
-
     def test_url_with_trailing_slash(self):
-        """Test URL with trailing slash is normalized."""
         assert normalize_url("http://example.com/api/") == "http://example.com/api"
 
     def test_url_without_trailing_slash(self):
-        """Test URL without trailing slash is unchanged."""
         assert normalize_url("http://example.com/api") == "http://example.com/api"
 
     def test_root_url_with_trailing_slash(self):
-        """Test root URL with trailing slash."""
         assert normalize_url("http://example.com/") == "http://example.com"
 
     def test_empty_string(self):
-        """Test empty string."""
         assert normalize_url("") == ""
 
 
@@ -59,11 +53,8 @@ def create_mock_session(response_data, status=200):
 
 
 class TestFetchWithRetry:
-    """Tests for fetch_with_retry function."""
-
     @pytest.mark.asyncio
     async def test_fetch_success_non_hpe(self):
-        """Test successful fetch for non-HPE host."""
         session = create_mock_session({"key": "value"})
         host = RedfishHost(
             HostConfig(
@@ -82,7 +73,6 @@ class TestFetchWithRetry:
 
     @pytest.mark.asyncio
     async def test_fetch_host_in_cooldown(self):
-        """Test fetch returns None when host is in cooldown."""
         session = create_mock_session({"key": "value"})
         host = RedfishHost(
             HostConfig(
@@ -103,7 +93,6 @@ class TestFetchWithRetry:
 
     @pytest.mark.asyncio
     async def test_fetch_with_hpe_token(self):
-        """Test fetch with HPE authentication token."""
         session = create_mock_session({"data": "test"})
         host = RedfishHost(
             HostConfig(
@@ -122,7 +111,6 @@ class TestFetchWithRetry:
 
     @pytest.mark.asyncio
     async def test_fetch_http_error_retry(self):
-        """Test fetch retries on HTTP 500 error."""
         session = MagicMock()
         mock_response = create_mock_response({}, status=500)
 
@@ -151,7 +139,6 @@ class TestFetchWithRetry:
 
     @pytest.mark.asyncio
     async def test_fetch_401_clears_hpe_token(self):
-        """Test that 401 response clears HPE token."""
         session = MagicMock()
         mock_response = create_mock_response({}, status=401)
 
@@ -178,11 +165,8 @@ class TestFetchWithRetry:
 
 
 class TestProcessPowerSupply:
-    """Tests for process_power_supply function."""
-
     @pytest.mark.asyncio
     async def test_process_legacy_power_api(self):
-        """Test processing PSU data from legacy Power API."""
         session = create_mock_session({})
         host = RedfishHost(
             HostConfig(
@@ -209,7 +193,6 @@ class TestProcessPowerSupply:
 
     @pytest.mark.asyncio
     async def test_process_legacy_power_api_calculates_amps(self):
-        """Test that amps is calculated when not provided."""
         session = create_mock_session({})
         host = RedfishHost(
             HostConfig(
@@ -232,7 +215,6 @@ class TestProcessPowerSupply:
 
     @pytest.mark.asyncio
     async def test_process_power_subsystem_api(self):
-        """Test processing PSU data from PowerSubsystem API."""
         metrics_data = {
             "InputVoltage": {"Reading": 240},
             "InputPowerWatts": {"Reading": 600},
@@ -262,7 +244,6 @@ class TestProcessPowerSupply:
 
     @pytest.mark.asyncio
     async def test_process_legacy_uses_last_power_output(self):
-        """Test that LastPowerOutputWatts is used as fallback."""
         session = create_mock_session({})
         host = RedfishHost(
             HostConfig(
@@ -285,11 +266,8 @@ class TestProcessPowerSupply:
 
 
 class TestGetPowerData:
-    """Tests for get_power_data function."""
-
     @pytest.mark.asyncio
     async def test_get_power_data_no_root(self):
-        """Test get_power_data returns early when root fetch fails."""
         session = MagicMock()
         mock_response = create_mock_response({}, status=500)
 
@@ -314,7 +292,6 @@ class TestGetPowerData:
 
     @pytest.mark.asyncio
     async def test_get_power_data_no_chassis(self):
-        """Test get_power_data returns early when no Chassis path."""
         session = create_mock_session({"RedfishVersion": "1.0.0"})
         host = RedfishHost(
             HostConfig(
@@ -330,11 +307,8 @@ class TestGetPowerData:
 
 
 class TestGetSystemInfo:
-    """Tests for get_system_info function."""
-
     @pytest.mark.asyncio
     async def test_get_system_info_no_root(self):
-        """Test get_system_info returns early when root fetch fails."""
         session = MagicMock()
         mock_response = create_mock_response({}, status=500)
 
@@ -359,7 +333,6 @@ class TestGetSystemInfo:
 
     @pytest.mark.asyncio
     async def test_get_system_info_no_systems(self):
-        """Test get_system_info returns early when no systems."""
         host = RedfishHost(
             HostConfig(
                 fqdn="http://localhost:5000",
