@@ -1,4 +1,4 @@
-"""Simple Redfish exporter to collect power data from bare metal servers"""
+"""Main entry point for the Redfish Prometheus Exporter."""
 
 import argparse
 import signal
@@ -8,8 +8,10 @@ import yaml
 from exporter import run_exporter
 
 
-async def main():
-    """Assemble configuration and run exporter"""
+async def main() -> None:
+    """Assemble configuration and run the exporter."""
+
+    logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser(description="Redfish Prometheus Exporter.")
 
