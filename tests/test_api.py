@@ -1,6 +1,8 @@
 # tests/test_api.py
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+import aiohttp
 from exporter.api import (
     fetch_with_retry,
     normalize_url,
@@ -9,7 +11,7 @@ from exporter.api import (
     get_system_info,
 )
 from exporter.redfish import RedfishHost
-from exporter.config import HostConfig
+from exporter.config import HostConfig, NO_DATA_ENTRY
 
 
 class TestNormalizeUrl:
@@ -176,6 +178,107 @@ class TestFetchWithRetry:
         # Token should be cleared on 401
         assert host.session.token is None
 
+    @pytest.mark.asyncio
+    async def test_fetch_probes_vendor_when_none(self):
+        """Test that vendor is probed when not set."""
+        session = create_mock_session({"key": "value"})
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+            )
+        )
+        # Vendor is None, so probe_vendor should be called
+        assert host.session.vendor is None
+
+        with patch("exporter.api.probe_vendor", new_callable=AsyncMock) as mock_probe:
+            mock_probe.return_value = "Dell"
+            result = await fetch_with_retry(
+                session, host, "http://localhost:5000/redfish/v1"
+            )
+            mock_probe.assert_called_once()
+            assert host.session.vendor == "Dell"
+            assert result == {"key": "value"}
+
+    @pytest.mark.asyncio
+    async def test_fetch_hpe_login_failure_returns_none(self):
+        """Test that HPE login failure returns None."""
+        session = create_mock_session({})
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+            )
+        )
+        host.session.vendor = "HPE"
+        host.session.token = None
+
+        with patch("exporter.api.login_hpe", new_callable=AsyncMock) as mock_login:
+            mock_login.return_value = False  # Login fails
+            result = await fetch_with_retry(
+                session, host, "http://localhost:5000/redfish/v1"
+            )
+            mock_login.assert_called_once()
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_timeout_error_retry(self):
+        """Test fetch retries on TimeoutError."""
+        session = MagicMock()
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+        session.get.return_value = mock_cm
+
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                max_retries=2,
+                backoff=0,
+            )
+        )
+        host.session.vendor = "Dell"
+
+        result = await fetch_with_retry(
+            session, host, "http://localhost:5000/redfish/v1"
+        )
+        assert result is None
+        # Should have retried
+        assert session.get.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_fetch_client_error_retry(self):
+        """Test fetch retries on ClientError."""
+        session = MagicMock()
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(
+            side_effect=aiohttp.ClientError("Connection failed")
+        )
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+        session.get.return_value = mock_cm
+
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                max_retries=2,
+                backoff=0,
+            )
+        )
+        host.session.vendor = "Dell"
+
+        result = await fetch_with_retry(
+            session, host, "http://localhost:5000/redfish/v1"
+        )
+        assert result is None
+        # Should have retried
+        assert session.get.call_count == 2
+
 
 class TestProcessPowerSupply:
     """Tests for process_power_supply function."""
@@ -328,6 +431,338 @@ class TestGetPowerData:
         # Should not raise, just return early
         await get_power_data(session, host, False)
 
+    @pytest.mark.asyncio
+    async def test_get_power_data_full_flow_power_subsystem(self):
+        """Test full power data collection with PowerSubsystem API."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        # Define mock responses for each fetch call
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            # Chassis member data
+            {"PowerSubsystem": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem"}},
+            # PowerSubsystem data
+            {"PowerSupplies": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem/PowerSupplies"}},
+            # PowerSupplies collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem/PowerSupplies/1"}]},
+            # Individual PSU data
+            {"SerialNumber": "PSU001", "Metrics": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem/PowerSupplies/1/Metrics"}},
+            # PSU Metrics
+            {
+                "InputVoltage": {"Reading": 230},
+                "InputPowerWatts": {"Reading": 500},
+                "InputCurrentAmps": {"Reading": 2.17},
+            },
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            with patch("exporter.api.safe_update_metrics") as mock_update:
+                await get_power_data(session, host, False)
+                mock_update.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_full_flow_legacy_power(self):
+        """Test full power data collection with legacy Power API."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        # Define mock responses for legacy Power API path
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            # Chassis member data (legacy Power API)
+            {"Power": {"@odata.id": "/redfish/v1/Chassis/1/Power"}},
+            # Power data with PSUs
+            {
+                "PowerSupplies": [
+                    {
+                        "SerialNumber": "PSU001",
+                        "LineInputVoltage": 230,
+                        "PowerInputWatts": 500,
+                    }
+                ]
+            },
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            with patch("exporter.api.safe_update_metrics") as mock_update:
+                await get_power_data(session, host, show_deprecated_warnings=True)
+                mock_update.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_skips_non_matching_chassis(self):
+        """Test that non-matching chassis IDs are skipped."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["2"],  # Only chassis 2
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection with chassis 1 (which should be skipped)
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            with patch("exporter.api.safe_update_metrics") as mock_update:
+                await get_power_data(session, host, False)
+                # Should not update metrics because chassis 1 is not in allowed list
+                mock_update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_empty_member_url(self):
+        """Test that empty member URLs are skipped."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection with empty URL
+            {"Members": [{"@odata.id": ""}]},
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            await get_power_data(session, host, False)
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_chassis_collection_none(self):
+        """Test handling when chassis collection fetch returns None."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection fetch fails
+            None,
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            await get_power_data(session, host, False)
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_no_power_endpoint(self):
+        """Test handling when chassis has no power endpoint."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            # Chassis member data with no Power or PowerSubsystem
+            {"Name": "Chassis 1"},
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            await get_power_data(session, host, False)
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_power_subsystem_no_psu_url(self):
+        """Test handling when PowerSubsystem has no PowerSupplies URL."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            # Chassis member data
+            {"PowerSubsystem": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem"}},
+            # PowerSubsystem data without PowerSupplies
+            {"Status": {"State": "Enabled"}},
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            await get_power_data(session, host, False)
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_member_data_none(self):
+        """Test handling when chassis member data fetch returns None."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            # Chassis member data fetch fails
+            None,
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            await get_power_data(session, host, False)
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_power_data_none(self):
+        """Test handling when power data fetch returns None."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            # Chassis member data
+            {"PowerSubsystem": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem"}},
+            # PowerSubsystem fetch fails
+            None,
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            await get_power_data(session, host, False)
+
+    @pytest.mark.asyncio
+    async def test_get_power_data_psu_collection_none(self):
+        """Test handling when PSU collection fetch returns None."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+                chassis=["1"],
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
+            # Chassis collection
+            {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            # Chassis member data
+            {"PowerSubsystem": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem"}},
+            # PowerSubsystem data
+            {"PowerSupplies": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem/PowerSupplies"}},
+            # PowerSupplies collection fetch fails
+            None,
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            await get_power_data(session, host, False)
+
 
 class TestGetSystemInfo:
     """Tests for get_system_info function."""
@@ -381,3 +816,81 @@ class TestGetSystemInfo:
             side_effect=responses,
         ):
             await get_system_info(session, host)
+
+    @pytest.mark.asyncio
+    async def test_get_system_info_full_flow(self):
+        """Test full system info collection flow."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"RedfishVersion": "1.8.0"},
+            # Systems collection
+            {"Members": [{"@odata.id": "/redfish/v1/Systems/1"}]},
+            # System data
+            {
+                "Manufacturer": "Dell Inc.",
+                "Model": "PowerEdge R750",
+                "SerialNumber": "ABC123",
+            },
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            with patch("exporter.api.SYSTEM_INFO") as mock_system_info:
+                mock_gauge = MagicMock()
+                mock_system_info.labels.return_value = mock_gauge
+                await get_system_info(session, host)
+                mock_system_info.labels.assert_called_once_with(
+                    host="http://localhost:5000", group="none"
+                )
+                mock_gauge.info.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_system_info_with_missing_fields(self):
+        """Test system info collection with missing optional fields."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+            )
+        )
+        host.session.vendor = "Dell"
+
+        responses = [
+            # Root response
+            {"RedfishVersion": "1.8.0"},
+            # Systems collection
+            {"Members": [{"@odata.id": "/redfish/v1/Systems/1"}]},
+            # System data with missing Manufacturer/Model/SerialNumber
+            # but contains other data so it's truthy
+            {"Name": "System 1"},
+        ]
+
+        session = MagicMock()
+        with patch(
+            "exporter.api.fetch_with_retry",
+            new_callable=AsyncMock,
+            side_effect=responses,
+        ):
+            with patch("exporter.api.SYSTEM_INFO") as mock_system_info:
+                mock_gauge = MagicMock()
+                mock_system_info.labels.return_value = mock_gauge
+                await get_system_info(session, host)
+                # Should use NO_DATA_ENTRY for missing fields
+                call_args = mock_gauge.info.call_args[0][0]
+                assert call_args["manufacturer"] == NO_DATA_ENTRY
+                assert call_args["model"] == NO_DATA_ENTRY
+                assert call_args["serial_number"] == NO_DATA_ENTRY

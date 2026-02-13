@@ -1,11 +1,15 @@
 # tests/test_utils.py
 import pytest
+from unittest.mock import patch, MagicMock
 from aiohttp import ClientTimeout, BasicAuth
 from exporter.utils import (
     get_aiohttp_request_kwargs,
     safe_get,
     validate_host_config,
+    safe_update_metrics,
 )
+from exporter.config import HostConfig, PowerMetrics
+from exporter.redfish import RedfishHost
 
 
 class TestGetAiohttpRequestKwargs:
@@ -255,3 +259,45 @@ class TestValidateHostConfig:
         assert result["max_retries"] == 10
         assert result["backoff"] == 5
         assert result["cool_down"] == 600
+
+
+class TestSafeUpdateMetrics:
+    """Tests for safe_update_metrics function."""
+
+    def test_safe_update_metrics_with_valid_metrics(self):
+        """Test that metrics are updated when valid PowerMetrics is provided."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+            )
+        )
+        metrics = PowerMetrics(
+            serial="PSU001",
+            voltage=230,
+            watts=500,
+            amps=2.17,
+        )
+
+        with patch(
+            "exporter.metrics.update_prometheus_metrics"
+        ) as mock_update:
+            safe_update_metrics(host, metrics)
+            mock_update.assert_called_once_with(host, metrics)
+
+    def test_safe_update_metrics_with_none(self):
+        """Test that no update happens when metrics is None."""
+        host = RedfishHost(
+            HostConfig(
+                fqdn="http://localhost:5000",
+                username="user",
+                password="pass",
+            )
+        )
+
+        with patch(
+            "exporter.metrics.update_prometheus_metrics"
+        ) as mock_update:
+            safe_update_metrics(host, None)
+            mock_update.assert_not_called()
