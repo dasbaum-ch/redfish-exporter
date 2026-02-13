@@ -1,5 +1,4 @@
 # tests/test_redfish.py
-import pytest
 from exporter.redfish import RedfishHost
 from exporter.config import HostConfig, RedfishSessionState
 from exporter.health import HostHealth
