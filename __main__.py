@@ -11,6 +11,8 @@ from exporter import run_exporter
 async def main() -> None:
     """Assemble configuration and run the exporter."""
 
+    logging.basicConfig(level=logging.INFO)
+
     parser = argparse.ArgumentParser(description="Redfish Prometheus Exporter.")
 
     parser.add_argument(
