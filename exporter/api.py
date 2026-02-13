@@ -70,14 +70,7 @@ async def fetch_with_retry(
 
 
 def normalize_url(url: str) -> str:
-    """Normalize a URL by removing trailing slashes.
-
-    Args:
-        url: URL to normalize.
-
-    Returns:
-        str: Normalized URL without trailing slash.
-    """
+    """Normalize a URL by removing trailing slashes."""
     return url[:-1] if url.endswith("/") else url
 
 
@@ -111,15 +104,10 @@ async def process_power_supply(
 
 
 async def get_power_data(
-    session: aiohttp.ClientSession, host: RedfishHost, show_deprecated_warnings: bool
+    session: aiohttp.ClientSession, host: RedfishHost, deprecated: bool
 ) -> None:
     """
     Fetch and process power data from a Redfish host.
-
-    Args:
-        session: Active aiohttp client session.
-        host: RedfishHost instance to query.
-        show_deprecated_warnings: If True, log warnings for deprecated APIs.
     """
     start = time.monotonic()
     root = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
@@ -127,7 +115,7 @@ async def get_power_data(
         return
 
     UP_GAUGE.labels(host=host.fqdn, group=host.group).set(1)
-    # Safe access, had problems with mypy :S
+
     chassis_id_path = root.get("Chassis", {}).get("@odata.id")
     if not chassis_id_path:
         return
@@ -157,7 +145,7 @@ async def get_power_data(
         if not p_url:
             p_url = m_data.get("Power", {}).get("@odata.id")
             p_type = "Power"
-            if p_url and show_deprecated_warnings:
+            if p_url and deprecated:
                 logging.warning("DEPRECATED: %s uses old Power API", host.fqdn)
 
         if not p_url:
@@ -193,10 +181,6 @@ async def get_power_data(
 async def get_system_info(session: aiohttp.ClientSession, host: RedfishHost) -> None:
     """
     Fetch and update system information metrics for a Redfish host.
-
-    Args:
-        session: Active aiohttp client session.
-        host: RedfishHost instance to query.
     """
     root = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
     if root is None:
