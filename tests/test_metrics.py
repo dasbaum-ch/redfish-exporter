@@ -1,5 +1,4 @@
 # tests/test_metrics.py
-import pytest
 from exporter.metrics import (
     update_prometheus_metrics,
     VOLTAGE_GAUGE,
@@ -32,7 +31,11 @@ class TestUpdatePrometheusMetrics:
 
         update_prometheus_metrics(host, metrics)
 
-        labels = {"host": "http://localhost:5000", "psu_serial": "PSU123", "group": "test-group"}
+        labels = {
+            "host": "http://localhost:5000",
+            "psu_serial": "PSU123",
+            "group": "test-group",
+        }
         assert VOLTAGE_GAUGE.labels(**labels)._value.get() == 230.0
         assert WATTS_GAUGE.labels(**labels)._value.get() == 500.0
         assert AMPS_GAUGE.labels(**labels)._value.get() == 2.17
@@ -95,7 +98,11 @@ class TestUpdatePrometheusMetrics:
 
         update_prometheus_metrics(host, metrics)
 
-        labels = {"host": "http://localhost:5001", "psu_serial": "PSU-V1", "group": "voltage-only"}
+        labels = {
+            "host": "http://localhost:5001",
+            "psu_serial": "PSU-V1",
+            "group": "voltage-only",
+        }
         assert VOLTAGE_GAUGE.labels(**labels)._value.get() == 240.0
 
     def test_update_partial_metrics_only_watts(self):
@@ -117,7 +124,11 @@ class TestUpdatePrometheusMetrics:
 
         update_prometheus_metrics(host, metrics)
 
-        labels = {"host": "http://localhost:5002", "psu_serial": "PSU-W1", "group": "watts-only"}
+        labels = {
+            "host": "http://localhost:5002",
+            "psu_serial": "PSU-W1",
+            "group": "watts-only",
+        }
         assert WATTS_GAUGE.labels(**labels)._value.get() == 600.0
 
     def test_update_partial_metrics_only_amps(self):
@@ -139,7 +150,11 @@ class TestUpdatePrometheusMetrics:
 
         update_prometheus_metrics(host, metrics)
 
-        labels = {"host": "http://localhost:5003", "psu_serial": "PSU-A1", "group": "amps-only"}
+        labels = {
+            "host": "http://localhost:5003",
+            "psu_serial": "PSU-A1",
+            "group": "amps-only",
+        }
         assert AMPS_GAUGE.labels(**labels)._value.get() == 3.5
 
     def test_update_zero_values(self):
@@ -161,7 +176,11 @@ class TestUpdatePrometheusMetrics:
 
         update_prometheus_metrics(host, metrics)
 
-        labels = {"host": "http://localhost:5004", "psu_serial": "PSU-ZERO", "group": "zero-test"}
+        labels = {
+            "host": "http://localhost:5004",
+            "psu_serial": "PSU-ZERO",
+            "group": "zero-test",
+        }
         assert VOLTAGE_GAUGE.labels(**labels)._value.get() == 0.0
         assert WATTS_GAUGE.labels(**labels)._value.get() == 0.0
         assert AMPS_GAUGE.labels(**labels)._value.get() == 0.0
@@ -176,15 +195,23 @@ class TestUpdatePrometheusMetrics:
                 group="multi-psu",
             )
         )
-        
+
         metrics1 = PowerMetrics(serial="PSU-1", voltage=230.0, watts=400.0, amps=1.74)
         metrics2 = PowerMetrics(serial="PSU-2", voltage=230.0, watts=450.0, amps=1.96)
 
         update_prometheus_metrics(host, metrics1)
         update_prometheus_metrics(host, metrics2)
 
-        labels1 = {"host": "http://localhost:5005", "psu_serial": "PSU-1", "group": "multi-psu"}
-        labels2 = {"host": "http://localhost:5005", "psu_serial": "PSU-2", "group": "multi-psu"}
-        
+        labels1 = {
+            "host": "http://localhost:5005",
+            "psu_serial": "PSU-1",
+            "group": "multi-psu",
+        }
+        labels2 = {
+            "host": "http://localhost:5005",
+            "psu_serial": "PSU-2",
+            "group": "multi-psu",
+        }
+
         assert WATTS_GAUGE.labels(**labels1)._value.get() == 400.0
         assert WATTS_GAUGE.labels(**labels2)._value.get() == 450.0

@@ -20,6 +20,13 @@ format:
 pre-commit:
     pre-commit install
 
+pytest:
+    PYTHONPATH="${PYTHONPATH}:$(pwd)" uv run pytest
+
+pytest-classic:
+    uv pip install -e .
+    pytest
+
 # Run the exporter
 run:
     python . --config config.yaml

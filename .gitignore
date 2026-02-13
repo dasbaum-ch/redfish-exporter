@@ -3,8 +3,11 @@
 .ruff_cache
 .venv
 .envrc
+.continue
 
 __pycache__
+.pytest_cache
+*.egg-info
 
 config.y*ml
 docs/
