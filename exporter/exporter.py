@@ -2,19 +2,26 @@
 import logging
 import asyncio
 import aiohttp
+from typing import Dict, Any
 from prometheus_client import start_http_server
 from exporter.config import HostConfig
 from exporter.redfish import RedfishHost
 from exporter.api import get_power_data, get_system_info
 from exporter.auth import logout_host
 
-async def process_request(t):
+async def process_request(t: float) -> None:
     """Simulate request time"""
     await asyncio.sleep(t)
 
-async def run_exporter(config, stop_event, show_deprecated_warnings):
+async def run_exporter(
+    config: Dict[str, Any],
+    stop_event: asyncio.Event,
+    show_deprecated_warnings: bool
+) -> None:
     """
-    Main entry point for the Redfish exporter. Collects metrics and exposes them via Prometheus.
+    Main entry point for the Redfish exporter.
+
+    Collects metrics from Redfish hosts and exposes them via Prometheus.
 
     Args:
         config: Dictionary with exporter configuration (hosts, port, interval, etc.).

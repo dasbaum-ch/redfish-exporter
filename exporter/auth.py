@@ -1,9 +1,10 @@
 # exporter/auth.py
 import logging
 import aiohttp
+from typing import Optional
 from exporter.redfish import RedfishHost
 
-async def probe_vendor(session: aiohttp.ClientSession, host: RedfishHost) -> str | None:
+async def probe_vendor(session: aiohttp.ClientSession, host: RedfishHost) -> Optional[str]:
     """
     Probe the vendor of a Redfish host by querying the root Redfish API endpoint.
 
@@ -12,7 +13,7 @@ async def probe_vendor(session: aiohttp.ClientSession, host: RedfishHost) -> str
         host: RedfishHost instance containing connection details.
 
     Returns:
-        The vendor name as a string if successful, otherwise None.
+        Optional[str]: The vendor name as a string if successful, otherwise None.
     """
     ssl_context = None if host.cfg.verify_ssl else False
     try:
@@ -35,7 +36,7 @@ async def login_hpe(session: aiohttp.ClientSession, host: RedfishHost) -> bool:
         host: RedfishHost instance to authenticate with.
 
     Returns:
-        True if login was successful, False otherwise.
+        bool: True if login was successful, False otherwise.
     """
     ssl_context = None if host.cfg.verify_ssl else False
     login_url = f"{host.fqdn}/redfish/v1/SessionService/Sessions"
@@ -52,7 +53,7 @@ async def login_hpe(session: aiohttp.ClientSession, host: RedfishHost) -> bool:
         logging.warning("Login failed for %s: %s", host.fqdn, e)
     return False
 
-async def logout_host(session: aiohttp.ClientSession, host: RedfishHost):
+async def logout_host(session: aiohttp.ClientSession, host: RedfishHost) -> None:
     """
     Log out from a Redfish host session by deleting the session token.
 

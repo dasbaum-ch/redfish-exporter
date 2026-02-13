@@ -3,26 +3,26 @@ import time
 import asyncio
 import aiohttp
 import logging
+from typing import Optional, Dict, Any
 from exporter.config import PowerMetrics, NO_DATA_ENTRY
 from exporter.redfish import RedfishHost
 from exporter.metrics import update_prometheus_metrics, REQUEST_LATENCY, UP_GAUGE, SYSTEM_INFO
 from exporter.auth import probe_vendor, login_hpe
 
-async def fetch_with_retry(session, host: RedfishHost, url: str):
-    """
-    Fetch JSON data from a Redfish API endpoint with retry and backoff logic.
+async def fetch_with_retry(
+    session: aiohttp.ClientSession,
+    host: RedfishHost,
+    url: str
+) -> Optional[Dict[str, Any]]:
+    """Fetch JSON data from a Redfish API endpoint with retry and backoff logic.
 
     Args:
-        session: Active aiohttp client session for HTTP requests.
-        host: RedfishHost instance containing connection details and health state.
+        session: Active aiohttp client session.
+        host: RedfishHost instance for connection details.
         url: Full URL to fetch data from.
-        max_retries: Maximum number of retry attempts (default: 3).
 
     Returns:
-        Parsed JSON response as a dictionary if successful, otherwise None.
-
-    Raises:
-        aiohttp.ClientError: If all retries fail due to network issues.
+        Optional[Dict[str, Any]]: Parsed JSON response as a dictionary, or None if all retries fail.
     """
     if host.health.check_and_log_skip(host.fqdn):
         UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
@@ -70,11 +70,22 @@ async def fetch_with_retry(session, host: RedfishHost, url: str):
     return None
 
 def normalize_url(url: str) -> str:
+    """Normalize a URL by removing trailing slashes.
+
+    Args:
+        url: URL to normalize.
+
+    Returns:
+        str: Normalized URL without trailing slash.
+    """
     return url[:-1] if url.endswith("/") else url
 
 async def process_power_supply(
-    session, host: RedfishHost, psu_data: dict, resource_type: str
-) -> PowerMetrics | None:
+    session: aiohttp.ClientSession,
+    host: RedfishHost,
+    psu_data: Dict[str, Any],
+    resource_type: str
+) -> Optional[PowerMetrics]:
     """
     Process power supply data and extract metrics like voltage, watts, and amps.
 
@@ -108,7 +119,11 @@ async def process_power_supply(
             metrics.amps = round(metrics.watts / metrics.voltage, 2)
     return metrics
 
-async def get_power_data(session, host: RedfishHost, show_deprecated_warnings: bool):
+async def get_power_data(
+    session: aiohttp.ClientSession,
+    host: RedfishHost,
+    show_deprecated_warnings: bool
+) -> None:
     """
     Fetch and process power data from a Redfish host.
 
@@ -176,7 +191,14 @@ async def get_power_data(session, host: RedfishHost, show_deprecated_warnings: b
 
     REQUEST_LATENCY.labels(host=host.fqdn).observe(time.monotonic() - start)
 
-async def get_system_info(session, host: RedfishHost):
+async def get_system_info(session: aiohttp.ClientSession, host: RedfishHost) -> None:
+    """
+    Fetch and update system information metrics for a Redfish host.
+
+    Args:
+        session: Active aiohttp client session.
+        host: RedfishHost instance to query.
+    """
     root = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
     if not root:
         return

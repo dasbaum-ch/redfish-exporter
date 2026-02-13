@@ -8,8 +8,6 @@ from prometheus_client import (
 )
 from exporter.config import PowerMetrics
 
-NO_DATA_ENTRY = "<no data>"
-
 REQUEST_TIME = Summary("request_processing_seconds", "Time spent processing request")
 REQUEST_LATENCY = Histogram(
     "redfish_request_latency_seconds", "Time for Redfish request", ["host"]
@@ -35,7 +33,7 @@ AMPS_GAUGE = Gauge(
 )
 SYSTEM_INFO = Info("redfish_system", "System information", ["host", "group"])
 
-def update_prometheus_metrics(host, metrics: PowerMetrics):
+def update_prometheus_metrics(host, metrics: PowerMetrics) -> None:
     """
     Update Prometheus metrics with the given power metrics for a host.
 
