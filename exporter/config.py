@@ -5,7 +5,20 @@ NO_DATA_ENTRY = "<no data>"
 
 @dataclass(frozen=True)
 class HostConfig:
-    """Static host config"""
+    """
+    Static configuration for a Redfish host.
+
+    Attributes:
+        fqdn: Fully Qualified Domain Name of the host.
+        username: Username for authentication.
+        password: Password for authentication.
+        verify_ssl: If True, verify SSL certificates.
+        chassis: List of chassis IDs to monitor.
+        group: Group name for the host.
+        max_retries: Maximum number of retries for failed requests.
+        backoff: Backoff factor for retries.
+        cool_down: Cool-down period in seconds after max retries.
+    """
 
     fqdn: str
     username: str
@@ -31,8 +44,15 @@ class RedfishSessionState:
 
 @dataclass
 class PowerMetrics:
-    """Container for Power metrics."""
+    """
+    Container for power metrics extracted from a Redfish host.
 
+    Attributes:
+        voltage: Input voltage in volts.
+        watts: Power consumption in watts.
+        amps: Current draw in amps.
+        serial: Serial number of the power supply.
+    """
     voltage: float | None = None
     watts: float | None = None
     amps: float | None = None

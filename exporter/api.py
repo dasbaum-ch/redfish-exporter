@@ -6,40 +6,24 @@ import logging
 from exporter.config import PowerMetrics, NO_DATA_ENTRY
 from exporter.redfish import RedfishHost
 from exporter.metrics import update_prometheus_metrics, REQUEST_LATENCY, UP_GAUGE, SYSTEM_INFO
-
-async def probe_vendor(session, host: RedfishHost) -> str | None:
-    """Probe the vendor of the Redfish host."""
-    ssl_context = None if host.cfg.verify_ssl else False
-    try:
-        async with session.get(
-            f"{host.fqdn}/redfish/v1/", ssl=ssl_context, timeout=10
-        ) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                return data.get("Vendor", "")
-    except Exception as e:
-        logging.warning("Vendor probe failed for %s: %s", host.fqdn, e)
-    return None
-
-async def login_hpe(session, host: RedfishHost) -> bool:
-    """Login to HPE Redfish API and set session token."""
-    ssl_context = None if host.cfg.verify_ssl else False
-    login_url = f"{host.fqdn}/redfish/v1/SessionService/Sessions"
-    payload = {"UserName": host.cfg.username, "Password": host.cfg.password}
-    try:
-        async with session.post(
-            login_url, json=payload, ssl=ssl_context, timeout=10
-        ) as resp:
-            if resp.status == 201:
-                host.session.token = resp.headers.get("X-Auth-Token")
-                host.session.logout_url = resp.headers.get("Location")
-                return True
-    except Exception as e:
-        logging.warning("Login failed for %s: %s", host.fqdn, e)
-    return False
+from exporter.auth import probe_vendor, login_hpe
 
 async def fetch_with_retry(session, host: RedfishHost, url: str):
-    """Fetch JSON from Redfish with retry/backoff."""
+    """
+    Fetch JSON data from a Redfish API endpoint with retry and backoff logic.
+
+    Args:
+        session: Active aiohttp client session for HTTP requests.
+        host: RedfishHost instance containing connection details and health state.
+        url: Full URL to fetch data from.
+        max_retries: Maximum number of retry attempts (default: 3).
+
+    Returns:
+        Parsed JSON response as a dictionary if successful, otherwise None.
+
+    Raises:
+        aiohttp.ClientError: If all retries fail due to network issues.
+    """
     if host.health.check_and_log_skip(host.fqdn):
         UP_GAUGE.labels(host=host.fqdn, group=host.group).set(0)
         return None
@@ -91,6 +75,18 @@ def normalize_url(url: str) -> str:
 async def process_power_supply(
     session, host: RedfishHost, psu_data: dict, resource_type: str
 ) -> PowerMetrics | None:
+    """
+    Process power supply data and extract metrics like voltage, watts, and amps.
+
+    Args:
+        session: Active aiohttp client session.
+        host: RedfishHost instance.
+        psu_data: Raw power supply data as a dictionary.
+        resource_type: Type of power resource (e.g., "PowerSubsystem").
+
+    Returns:
+        PowerMetrics object with extracted values, or None if processing fails.
+    """
     serial = psu_data.get("SerialNumber")
     metrics = PowerMetrics(serial=serial)
 
@@ -113,6 +109,14 @@ async def process_power_supply(
     return metrics
 
 async def get_power_data(session, host: RedfishHost, show_deprecated_warnings: bool):
+    """
+    Fetch and process power data from a Redfish host.
+
+    Args:
+        session: Active aiohttp client session.
+        host: RedfishHost instance to query.
+        show_deprecated_warnings: If True, log warnings for deprecated APIs.
+    """
     start = time.monotonic()
     root = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
     if not root:
@@ -194,26 +198,3 @@ async def get_system_info(session, host: RedfishHost):
                     "redfish_version": root.get("RedfishVersion", "unknown"),
                 }
             )
-
-async def logout_host(session, host: RedfishHost):
-    """Clean logout for Redfish with session tokens"""
-    if not host.session.token or not host.session.logout_url:
-        return
-    ssl_context = None if host.cfg.verify_ssl else False
-    try:
-        async with session.delete(
-            host.session.logout_url,
-            headers={"X-Auth-Token": host.session.token},
-            ssl=ssl_context,
-            timeout=5,
-        ) as resp:
-            if resp.status in (200, 204):
-                logging.info("Logged out from %s", host.fqdn)
-            else:
-                logging.warning(
-                    "Logout from %s failed with status %s", host.fqdn, resp.status
-                )
-    except Exception as e:
-        logging.warning("Logout error for %s: %s", host.fqdn, e)
-    finally:
-        host.session.token = None

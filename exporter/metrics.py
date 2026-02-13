@@ -36,6 +36,13 @@ AMPS_GAUGE = Gauge(
 SYSTEM_INFO = Info("redfish_system", "System information", ["host", "group"])
 
 def update_prometheus_metrics(host, metrics: PowerMetrics):
+    """
+    Update Prometheus metrics with the given power metrics for a host.
+
+    Args:
+        host: RedfishHost instance.
+        metrics: PowerMetrics instance with voltage, watts, and amps.
+    """
     if not metrics.serial:
         return
     labels = {"host": host.fqdn, "psu_serial": metrics.serial, "group": host.group}

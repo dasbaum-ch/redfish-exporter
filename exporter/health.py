@@ -4,16 +4,34 @@ import logging
 from exporter.config import HostConfig
 
 class HostHealth:
-    """Manage host health."""
+    """
+    Manage the health state of a Redfish host, including failure tracking and cool-down logic.
+
+    Attributes:
+        _config: HostConfig instance.
+        failures: Number of consecutive failures.
+        next_retry_time: Timestamp for the next allowed retry.
+    """
 
     def __init__(self, config: HostConfig):
+        """
+        Initialize HostHealth with the given configuration.
+
+        Args:
+            config: HostConfig instance with retry and cool-down settings.
+        """
         self._config = config
         self.failures = 0
         self.next_retry_time = 0.0
 
     @property
     def should_skip(self) -> bool:
-        """Check if host is still in cool-down window"""
+        """
+        Check if the host is still in the cool-down window.
+
+        Returns:
+            True if the host should be skipped, False otherwise.
+        """
         return time.monotonic() < self.next_retry_time
 
     def check_and_log_skip(self, fqdn: str) -> bool:
