@@ -1,5 +1,4 @@
 # config.py
-import time
 from dataclasses import dataclass, field
 
 NO_DATA_ENTRY = "<no data>"

@@ -2,12 +2,10 @@
 import time
 import asyncio
 import aiohttp
-from typing import Any, Dict, Optional
 import logging
-from exporter.config import HostConfig, RedfishSessionState, PowerMetrics, NO_DATA_ENTRY
-from exporter.health import HostHealth
+from exporter.config import PowerMetrics, NO_DATA_ENTRY
 from exporter.redfish import RedfishHost
-from exporter.metrics import update_prometheus_metrics, REQUEST_LATENCY, UP_GAUGE, SYSTEM_INFO, NO_DATA_ENTRY
+from exporter.metrics import update_prometheus_metrics, REQUEST_LATENCY, UP_GAUGE, SYSTEM_INFO
 
 async def probe_vendor(session, host: RedfishHost) -> str | None:
     """Probe the vendor of the Redfish host."""
