@@ -47,15 +47,12 @@ async def fetch_with_retry(
     for attempt in range(1, host.cfg.max_retries + 1):
         try:
             async with session.get(url, **kwargs) as resp:
-                if resp.status == 200:
-                    host.health.mark_success()
-                    return await resp.json()
-                if resp.status in (401, 403) and host.session.is_hpe:
-                    host.session.token = None
-                    continue
-                logging.warning(
-                    "HTTP %s from %s (attempt %d)", resp.status, host.fqdn, attempt
-                )
+                if resp.status >= 400:
+                    if resp.status in (401, 403):
+                        if host.session.is_hpe:
+                            host.session.token = None
+                    return None
+                return await resp.json()
 
         except (asyncio.TimeoutError, aiohttp.ClientError) as e:
             logging.warning(
@@ -85,8 +82,9 @@ async def process_power_supply(
     metrics = PowerMetrics(serial=serial)
 
     if resource_type == "PowerSubsystem":
-        metrics_url = psu_data.get("Metrics", {}).get("@odata.id")
-        if metrics_url:
+        metrics_ref = psu_data.get("Metrics")
+        if metrics_ref and "@odata.id" in metrics_ref:
+            metrics_url = metrics_ref["@odata.id"]
             data = await fetch_with_retry(session, host, f"{host.fqdn}{metrics_url}")
             if data:
                 metrics.voltage = safe_get(data, "InputVoltage", "Reading")
