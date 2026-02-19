@@ -74,6 +74,7 @@ Always adhere to the following rules:
 ## 5. Testing
 - **Test Coverage:** EVERY function and method must have a corresponding test in the `tests/` directory.
 - Assume the use of `pytest` and `pytest-asyncio` based on the project structure. Keep tests isolated and mock external HTTP calls (e.g., using the `mock_server`).
+- **Mock_server:** Use `config-localdev.yaml` for tests.
 
 ## 6. Tooling & Workflow
 - **Linting & Formatting:** The project strictly uses `ruff`. You must write code that complies with `ruff check` and `ruff format`. Assume the user runs `just lint` and `just format`.
