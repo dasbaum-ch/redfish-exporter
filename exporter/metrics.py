@@ -6,7 +6,7 @@ from prometheus_client import (
     Histogram,
     Info,
 )
-from exporter.config import PowerMetrics
+from .config import PowerMetrics
 
 REQUEST_TIME = Summary("request_processing_seconds", "Time spent processing request")
 REQUEST_LATENCY = Histogram(

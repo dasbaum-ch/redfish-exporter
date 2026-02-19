@@ -3,9 +3,9 @@ import logging
 import asyncio
 from typing import Optional
 import aiohttp
-from exporter.redfish import RedfishHost
-from exporter.utils import get_aiohttp_request_kwargs
-from exporter.metrics import (
+from .redfish import RedfishHost
+from .utils import get_aiohttp_request_kwargs
+from .metrics import (
     UP_GAUGE,
 )
 

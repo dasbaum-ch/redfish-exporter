@@ -1,6 +1,6 @@
 # redfish.py
-from exporter.config import HostConfig, RedfishSessionState
-from exporter.health import HostHealth
+from .config import HostConfig, RedfishSessionState
+from .health import HostHealth
 
 
 class RedfishHost:

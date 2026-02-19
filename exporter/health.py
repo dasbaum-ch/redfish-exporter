@@ -1,7 +1,7 @@
 # health.py
 import time
 import logging
-from exporter.config import HostConfig
+from .config import HostConfig
 
 
 class HostHealth:

@@ -4,11 +4,11 @@ from typing import Dict, Any
 import asyncio
 import aiohttp
 from prometheus_client import start_http_server
-from exporter.config import HostConfig
-from exporter.redfish import RedfishHost
-from exporter.api import get_power_data, get_system_info
-from exporter.auth import logout_host
-from exporter.utils import validate_host_config
+from .config import HostConfig
+from .redfish import RedfishHost
+from .api import get_power_data, get_system_info
+from .auth import logout_host
+from .utils import validate_host_config
 
 
 async def process_request(t: float) -> None:
