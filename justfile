@@ -60,3 +60,7 @@ install-systemd:
     sudo cp redfish-exporter.service /etc/systemd/system/redfish-exporter.service
     sudo systemctl daemon-reload
     sudo systemctl enable --now redfish-exporter.service
+
+# create doc
+doc:
+    pdoc -o docs .

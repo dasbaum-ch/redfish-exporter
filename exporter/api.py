@@ -4,15 +4,15 @@ import logging
 from typing import Optional, Dict, Any
 import asyncio
 import aiohttp
-from exporter.config import PowerMetrics, NO_DATA_ENTRY
-from exporter.redfish import RedfishHost
-from exporter.metrics import (
+from .config import PowerMetrics, NO_DATA_ENTRY
+from .redfish import RedfishHost
+from .metrics import (
     REQUEST_LATENCY,
     UP_GAUGE,
     SYSTEM_INFO,
 )
-from exporter.auth import probe_vendor, login_hpe
-from exporter.utils import get_aiohttp_request_kwargs, safe_get, safe_update_metrics
+from .auth import probe_vendor, login_hpe
+from .utils import get_aiohttp_request_kwargs, safe_get, safe_update_metrics
 
 
 async def fetch_with_retry(

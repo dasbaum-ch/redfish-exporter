@@ -1,8 +1,8 @@
 # exporter/utils.py
 from aiohttp import ClientTimeout
 from typing import Optional, Any, Dict, Union
-from exporter.redfish import RedfishHost
-from exporter.config import PowerMetrics
+from .redfish import RedfishHost
+from .config import PowerMetrics
 
 
 def get_aiohttp_request_kwargs(
