@@ -4,7 +4,7 @@ port: 8000
 username: user
 password: secrets
 verify_ssl: true
-chassis: ["Chassis-1"] # Strings, not integers!
+chassis: ["Chassis-1"]
 group: production
 hosts:
   - fqdn: http://localhost:5000
