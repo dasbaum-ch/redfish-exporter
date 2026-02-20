@@ -56,8 +56,12 @@ async def main() -> None:
     loop = asyncio.get_running_loop()
 
     # Handle SIGINT (Ctrl+C) and SIGTERM
+    def signal_handler() -> None:
+        logging.info("SIGINT or SIGTERM received, shutting down gracefully...")
+        stop_event.set()
+
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_event.set)
+        loop.add_signal_handler(sig, signal_handler)
 
     await run_exporter(config, stop_event, show_deprecated_warnings)
 

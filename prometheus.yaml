@@ -1,3 +1,4 @@
+---
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -9,6 +10,6 @@ scrape_configs:
 
   - job_name: "redfish_exporter"
     static_configs:
-      - targets: ["localhost:8000"] # Adjust to your config
+      - targets: ["localhost:8000"]
     metrics_path: /metrics
     scrape_interval: 15s

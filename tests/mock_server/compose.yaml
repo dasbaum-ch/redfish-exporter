@@ -1,6 +1,7 @@
+---
 services:
   redfish-server:
-    image: dmtf/redfish-interface-emulator:latest 
+    image: dmtf/redfish-interface-emulator:latest
     container_name: redfish-server
     ports:
       - "5000:5000"
