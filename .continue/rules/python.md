@@ -6,47 +6,6 @@ This document defines the rules and conventions for the Prometheus Exporter agen
 You are an expert Python developer assisting with a Prometheus Exporter project that collects hardware metrics via the Redfish API. 
 Your primary goals are maintainability, readability, and extensibility.
 
-### Project structure
-```
-├── compose.yaml
-├── config-localdev.yaml
-├── config.yaml
-├── config.yaml.example
-├── Dockerfile
-├── exporter
-│   ├── api.py
-│   ├── auth.py
-│   ├── config.py
-│   ├── health.py
-│   ├── __init__.py
-│   ├── main.py
-│   ├── metrics.py
-│   ├── redfish.py
-│   └── utils.py
-├── __init__.py
-├── justfile
-├── LICENSE
-├── __main__.py
-├── prometheus.yaml
-├── pyproject.toml
-├── README.md
-├── redfish-exporter.service
-├── renovate.json
-├── tests
-│   ├── conftest.py
-│   ├── mock_server
-│   │   ├── compose.yaml
-│   │   └── README.md
-│   ├── test_api.py
-│   ├── test_auth.py
-│   ├── test_config.py
-│   ├── test_health.py
-│   ├── test_metrics.py
-│   ├── test_redfish.py
-│   └── test_utils.py
-└── uv.lock
-```
-
 ---
 
 ## Rules
