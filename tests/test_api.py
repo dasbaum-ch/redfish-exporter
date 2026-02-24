@@ -1,7 +1,6 @@
 # tests/test_api.py
 import pytest
 import asyncio
-import aiohttp
 from unittest.mock import AsyncMock, MagicMock
 from exporter.api import (
     fetch_with_retry,
@@ -13,6 +12,7 @@ from exporter.api import (
 from exporter.redfish import RedfishHost
 from exporter.config import HostConfig
 
+
 def make_host(vendor="Dell", **kwargs):
     defaults = {
         "fqdn": "http://localhost:5000",
@@ -23,31 +23,27 @@ def make_host(vendor="Dell", **kwargs):
     host.session.vendor = vendor
     return host
 
-# --- Verbesserte Mocking-Utilities ---
 
 def create_routed_mock_session(url_map, default_status=200):
     session = MagicMock()
 
     def mock_get(url, **kwargs):
         url_str = str(url)
-        
-        # Sortiere Pfade nach Länge absteigend (für korrekte Priorisierung)
+
+        # Sort path by lenght desc
         sorted_paths = sorted(url_map.keys(), key=len, reverse=True)
-        
+
         found_data = None
         for path in sorted_paths:
             if path in url_str:
                 found_data = url_map[path]
                 break
 
-        # Das Objekt, das den Context Manager simuliert (für async with)
         mock_cm = MagicMock()
 
         if isinstance(found_data, Exception):
-            # Wenn es eine Exception ist, lassen wir __aenter__ fehlschlagen
             mock_cm.__aenter__ = AsyncMock(side_effect=found_data)
         else:
-            # Normaler Response-Pfad
             mock_response = MagicMock()
             if found_data is not None:
                 if isinstance(found_data, tuple):
@@ -60,9 +56,9 @@ def create_routed_mock_session(url_map, default_status=200):
             mock_response.status = status
             mock_response.json = AsyncMock(return_value=json_data)
             mock_response.headers = {"X-Auth-Token": "test-token"}
-            
+
             mock_cm.__aenter__ = AsyncMock(return_value=mock_response)
-        
+
         mock_cm.__aexit__ = AsyncMock(return_value=None)
         return mock_cm
 
@@ -70,12 +66,12 @@ def create_routed_mock_session(url_map, default_status=200):
     session.post = MagicMock(side_effect=mock_get)
     return session
 
+
 def create_mock_session(response_data, status=200):
     if response_data is None:
         return create_routed_mock_session({"": (status, {})})
     return create_routed_mock_session({"": (status, response_data)})
 
-# --- Tests ---
 
 class TestNormalizeUrl:
     def test_url_with_trailing_slash(self):
@@ -96,6 +92,7 @@ class TestNormalizeUrl:
     def test_empty_string(self):
         assert normalize_url("") == ""
 
+
 class TestFetchWithRetry:
     @pytest.mark.asyncio
     async def test_fetch_success_non_hpe(self):
@@ -108,19 +105,19 @@ class TestFetchWithRetry:
 
     @pytest.mark.asyncio
     async def test_fetch_http_error_retry(self):
-        # /redfish/v1/ muss klappen, damit probe_vendor durchgeht,
-        # aber die eigentliche Ziel-URL soll fehlschlagen.
+        # /redfish/v1/ must be OK, but the target URL should fail.
         url_map = {
             "/redfish/v1/": {"Vendor": "Dell"},
-            "http://localhost:5000/redfish/v1/fail": (500, {})
+            "http://localhost:5000/redfish/v1/fail": (500, {}),
         }
         session = create_routed_mock_session(url_map)
         host = make_host(max_retries=2, backoff=0)
-        
+
         result = await fetch_with_retry(
             session, host, "http://localhost:5000/redfish/v1/fail"
         )
         assert result is None
+
 
 class TestProcessPowerSupply:
     @pytest.mark.asyncio
@@ -180,6 +177,7 @@ class TestProcessPowerSupply:
         assert result.watts is None
         assert result.amps is None
 
+
 class TestGetPowerData:
     @pytest.mark.asyncio
     async def test_get_power_data_no_root(self):
@@ -193,61 +191,67 @@ class TestGetPowerData:
 
     @pytest.mark.asyncio
     async def test_get_power_data_chassis_no_members(self):
-        # Repariert: Der Mock antwortet jetzt differenziert
         url_map = {
             "/redfish/v1/": {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
-            "/redfish/v1/Chassis": {"Members": []}
+            "/redfish/v1/Chassis": {"Members": []},
         }
         session = create_routed_mock_session(url_map)
         await get_power_data(session, make_host(), False)
 
     @pytest.mark.asyncio
     async def test_get_power_data_full_flow_modern(self):
-        # Testet den kompletten Pfad für moderne APIs (PowerSubsystem)
+        # Test PowerSubsystem
         url_map = {
             "/redfish/v1/": {"Chassis": {"@odata.id": "/redfish/v1/Chassis"}},
-            "/redfish/v1/Chassis": {"Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]},
+            "/redfish/v1/Chassis": {
+                "Members": [{"@odata.id": "/redfish/v1/Chassis/1"}]
+            },
             "/redfish/v1/Chassis/1": {
                 "PowerSubsystem": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem"}
             },
             "/redfish/v1/Chassis/1/PowerSubsystem": {
-                "PowerSupplies": {"@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem/PSUs"}
+                "PowerSupplies": {
+                    "@odata.id": "/redfish/v1/Chassis/1/PowerSubsystem/PSUs"
+                }
             },
             "/redfish/v1/Chassis/1/PowerSubsystem/PSUs": {
                 "Members": [{"@odata.id": "/redfish/v1/PSU/1"}]
             },
             "/redfish/v1/PSU/1": {
                 "SerialNumber": "FULL-FLOW-SN",
-                "Metrics": {"@odata.id": "/redfish/v1/PSU/1/Metrics"}
+                "Metrics": {"@odata.id": "/redfish/v1/PSU/1/Metrics"},
             },
             "/redfish/v1/PSU/1/Metrics": {
                 "InputVoltage": {"Reading": 230},
-                "InputPowerWatts": {"Reading": 450}
-            }
+                "InputPowerWatts": {"Reading": 450},
+            },
         }
         session = create_routed_mock_session(url_map)
         await get_power_data(session, make_host(), False)
+
 
 class TestGetSystemInfo:
     @pytest.mark.asyncio
     async def test_get_system_info_success(self):
         url_map = {
             "/redfish/v1/": {"RedfishVersion": "1.0.0"},
-            "/redfish/v1/Systems": {"Members": [{"@odata.id": "/redfish/v1/Systems/1"}]},
+            "/redfish/v1/Systems": {
+                "Members": [{"@odata.id": "/redfish/v1/Systems/1"}]
+            },
             "/redfish/v1/Systems/1": {
                 "Manufacturer": "Manufacturer Name",
                 "Model": "Model Name",
-                "SerialNumber": "2M220100SL"
-            }
+                "SerialNumber": "2M220100SL",
+            },
         }
         session = create_routed_mock_session(url_map)
         await get_system_info(session, make_host())
-        
+
     @pytest.mark.asyncio
     async def test_get_system_info_no_systems(self):
         url_map = {
             "/redfish/v1/": {"RedfishVersion": "1.0.0"},
-            "/redfish/v1/Systems": {"Members": []}
+            "/redfish/v1/Systems": {"Members": []},
         }
         session = create_routed_mock_session(url_map)
         await get_system_info(session, make_host())
@@ -257,53 +261,38 @@ class TestResilience:
     @pytest.mark.asyncio
     async def test_hpe_relogin_after_401(self):
         """
-        Simuliert einen abgelaufenen HPE Token. 
-        Nach einem 401 muss der Token im Host-Objekt gelöscht werden.
+        Simulate expired token.
+        After HTTP 401, token has to be deleted at host-object.
         """
-        # 1. Setup: Host hat bereits einen (ungültigen) Token
         host = make_host(vendor="HPE")
         host.session.token = "expired-token"
-        
-        # Mock liefert 401 für den Request
-        url_map = {
-            "/redfish/v1/": (401, {"error": "session expired"})
-        }
+
+        url_map = {"/redfish/v1/": (401, {"error": "session expired"})}
         session = create_routed_mock_session(url_map)
-        
-        # 2. Aktion: Request ausführen
+
         result = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
-        
-        # 3. Check: Resultat muss None sein UND der Token muss gelöscht worden sein
+
         assert result is None
-        assert host.session.token is None # Wichtig für den automatischen Re-Login im nächsten Loop
+        assert host.session.token is None
 
     @pytest.mark.asyncio
     async def test_host_health_cooldown_after_timeout(self):
         """
-        Testet das HostHealth System: Nach zu vielen Fehlern (Timeouts) 
-        muss der Host in den Cool-down gehen.
+        Test HostHealth system: After too many attempts, hosts goes to
+        cool-down state.
         """
-        # Host-Konfiguration: Nach 2 Fehlern für 60s sperren
         host = make_host(max_retries=2, cool_down=60)
-        
-        # Mock simuliert einen Netzwerk-Timeout
-        url_map = {
-            "/redfish/v1/": asyncio.TimeoutError("Connection timed out")
-        }
+
+        url_map = {"/redfish/v1/": asyncio.TimeoutError("Connection timed out")}
         session = create_routed_mock_session(url_map)
-        
-        # 1. Ausfall: failures erhöht sich auf 1
+
         await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
         assert host.health.failures == 1
-        assert host.health.should_skip is False # Noch unter dem Limit
-        
-        # 2. Ausfall: failures erreicht Limit (2), Cool-down startet
+        assert host.health.should_skip is False
+
         await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
-        
-        # Jetzt muss der Host im Cool-down-Status sein
+
         assert host.health.should_skip is True
-        
-        # 3. Versuch: fetch_with_retry sollte sofort abbrechen (None),
-        # ohne überhaupt den Mock/Netzwerk anzufragen.
+
         result = await fetch_with_retry(session, host, f"{host.fqdn}/redfish/v1/")
         assert result is None

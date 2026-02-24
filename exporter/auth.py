@@ -9,6 +9,7 @@ from .metrics import (
     UP_GAUGE,
 )
 
+
 async def probe_vendor(
     session: aiohttp.ClientSession, host: RedfishHost
 ) -> Optional[str]:
@@ -34,23 +35,33 @@ async def probe_vendor(
                 else:
                     logging.warning(
                         "Request to %s failed with status %d (attempt %d).",
-                        host.fqdn, resp.status, attempt
+                        host.fqdn,
+                        resp.status,
+                        attempt,
                     )
                     resp.raise_for_status()
         except aiohttp.ClientConnectorError as e:
-            logging.warning("Connection error for %s (attempt %d): %s", host.fqdn, attempt, e)
+            logging.warning(
+                "Connection error for %s (attempt %d): %s", host.fqdn, attempt, e
+            )
         except asyncio.TimeoutError as e:
-            logging.warning("Timeout error for %s (attempt %d): %s", host.fqdn, attempt, e)
+            logging.warning(
+                "Timeout error for %s (attempt %d): %s", host.fqdn, attempt, e
+            )
         except aiohttp.ClientResponseError as e:
             logging.warning("HTTP error for %s (attempt %d): %s", host.fqdn, attempt, e)
         except asyncio.CancelledError:
-            logging.warning("Request to %s was cancelled (attempt %d).", host.fqdn, attempt)
+            logging.warning(
+                "Request to %s was cancelled (attempt %d).", host.fqdn, attempt
+            )
             raise
         except Exception as e:
-            logging.warning("Unexpected error for %s (attempt %d): %s", host.fqdn, attempt, e)
+            logging.warning(
+                "Unexpected error for %s (attempt %d): %s", host.fqdn, attempt, e
+            )
 
         if attempt < max_retries:
-            await asyncio.sleep(backoff ** attempt)
+            await asyncio.sleep(backoff**attempt)
 
     host.health.mark_failure()
     return None
