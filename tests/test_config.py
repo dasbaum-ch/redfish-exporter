@@ -165,6 +165,19 @@ class TestPowerMetrics:
         assert metrics.amps is None
         assert metrics.serial is None
 
+    def test_power_metrics_partial_values_with_none(self):
+        """Test PowerMetrics with some values set to None."""
+        metrics = PowerMetrics(
+            voltage=None,
+            watts=300.0,
+            amps=None,
+            serial="PSU12345",
+        )
+        assert metrics.voltage is None
+        assert metrics.watts == 300.0
+        assert metrics.amps is None
+        assert metrics.serial == "PSU12345"
+
 
 class TestModuleConstants:
     """Tests for module-level constants."""
@@ -172,3 +185,7 @@ class TestModuleConstants:
     def test_no_data_entry_constant(self):
         """Test NO_DATA_ENTRY constant value."""
         assert NO_DATA_ENTRY == "<no data>"
+
+    def test_no_data_entry_constant_type(self):
+        """Test NO_DATA_ENTRY constant type is str."""
+        assert isinstance(NO_DATA_ENTRY, str)
