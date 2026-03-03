@@ -21,7 +21,7 @@ pre-commit:
     pre-commit install
 
 pytest:
-    PYTHONPATH="${PYTHONPATH}:$(pwd)" uv run pytest
+    PYTHONPATH="$(pwd)" uv run pytest
 
 pytest-classic:
     uv pip install -e .
